@@ -22,6 +22,11 @@ function LiveViewPanel({ threadId, params }: PluginThreadPanelProps) {
   }, [rpc, threadId, targetId]);
 
   useEffect(() => {
+    // Clear out the previous target immediately so a panel switched to a
+    // new targetId (via the live-view chip) never shows the old iframe
+    // while the new lookup is still in flight.
+    setLoading(true);
+    setTarget(null);
     refresh();
   }, [refresh]);
 
@@ -38,8 +43,14 @@ function LiveViewPanel({ threadId, params }: PluginThreadPanelProps) {
   if (!target) {
     return (
       <div style={{ padding: 16 }}>
-        No Kernel browser opened in this thread yet. Ask the agent to open one, or run{" "}
-        <code>bb kernel-browser open &lt;url&gt;</code>.
+        {targetId ? (
+          <p>Target {targetId} was closed or no longer exists.</p>
+        ) : (
+          <p>
+            No Kernel browser opened in this thread yet. Ask the agent to open one, or run{" "}
+            <code>bb kernel-browser open &lt;url&gt;</code>.
+          </p>
+        )}
       </div>
     );
   }

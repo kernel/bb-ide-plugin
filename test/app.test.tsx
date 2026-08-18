@@ -93,4 +93,47 @@ describe("kernel-browser app", () => {
     await vi.waitFor(() => expect(latestForThread).toHaveBeenCalledWith({ threadId: "thread-a" }));
     await slot.findByText("sess_2");
   });
+
+  it("tells the user a directive-linked target was closed, rather than claiming none was ever opened", async () => {
+    const app = await loadPluginApp(() => import("../app.js"));
+    const [panel] = app.threadPanelActions;
+    const forTarget = vi.fn(async () => ({ target: null }));
+
+    const slot = renderSlot(
+      panel,
+      { threadId: "thread-a", params: { targetId: "sess_gone" } },
+      { rpc: { forTarget, latestForThread: async () => ({ target: null }), close: async () => ({ ok: true }) } },
+    );
+
+    await slot.findByText("Target sess_gone was closed or no longer exists.");
+  });
+
+  it("clears the previous target immediately when the panel is redirected to a different targetId", async () => {
+    const app = await loadPluginApp(() => import("../app.js"));
+    const [panel] = app.threadPanelActions;
+    const Panel = panel.component;
+    let resolveSecond: (value: { target: TargetDto | null }) => void = () => {};
+    const secondLookup = new Promise<{ target: TargetDto | null }>((resolve) => {
+      resolveSecond = resolve;
+    });
+    const forTarget = vi
+      .fn()
+      .mockResolvedValueOnce({ target: fakeTarget({ targetId: "sess_1" }) })
+      .mockReturnValueOnce(secondLookup);
+
+    const slot = renderSlot(
+      panel,
+      { threadId: "thread-a", params: { targetId: "sess_1" } },
+      { rpc: { forTarget, latestForThread: async () => ({ target: null }), close: async () => ({ ok: true }) } },
+    );
+    await slot.findByText("sess_1");
+
+    slot.lifecycle.rerender(<Panel threadId="thread-a" params={{ targetId: "sess_2" }} />);
+
+    expect(slot.queryByText("sess_1")).toBeNull();
+    expect(slot.getByText("Loading…")).toBeTruthy();
+
+    resolveSecond({ target: fakeTarget({ targetId: "sess_2" }) });
+    await slot.findByText("sess_2");
+  });
 });
