@@ -1,19 +1,14 @@
 import Kernel from "@onkernel/sdk";
-import type {
-  ClickTarget,
-  KernelBrowserClient,
-  OpenOptions,
-  OpenResult,
-  RemoteBrowserSummary,
-  SnapshotResult,
-  TypeTarget,
-} from "./types.js";
+import type { ClickTarget, KernelBrowserClient, OpenOptions, OpenResult, SnapshotResult, TypeTarget } from "./types.js";
 
 export function createKernelClient(apiKey: string): KernelBrowserClient {
   const kernel = new Kernel({ apiKey });
 
   async function execute(sessionId: string, code: string): Promise<unknown> {
     const response = await kernel.browsers.playwright.execute(sessionId, { code });
+    if (!response.success) {
+      throw new Error(response.error ?? "playwright execution failed");
+    }
     return response.result;
   }
 
@@ -31,16 +26,6 @@ export function createKernelClient(apiKey: string): KernelBrowserClient {
         liveViewUrl: browser.browser_live_view_url ?? null,
         cdpWsUrl: browser.cdp_ws_url,
       };
-    },
-
-    async list(): Promise<RemoteBrowserSummary[]> {
-      const page = await kernel.browsers.list({ status: "active", limit: 100 });
-      return page.items.map((item) => ({
-        sessionId: item.session_id,
-        liveViewUrl: item.browser_live_view_url ?? null,
-        createdAt: item.created_at,
-        headless: item.headless,
-      }));
     },
 
     async snapshot(sessionId: string): Promise<SnapshotResult> {

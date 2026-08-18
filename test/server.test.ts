@@ -2,22 +2,25 @@ import type { PluginSettingValue } from "@get-bb/plugin-sdk";
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const fakeClient = {
-  open: vi.fn(async () => ({
-    sessionId: "sess_1",
-    liveViewUrl: "https://live.example/sess_1",
-    cdpWsUrl: "wss://cdp.example/sess_1",
-  })),
-  list: vi.fn(async () => []),
-  snapshot: vi.fn(async () => ({ url: "https://example.com", title: "Example" })),
-  click: vi.fn(async () => {}),
-  type: vi.fn(async () => {}),
-  evaluate: vi.fn(async () => "eval-result"),
-  close: vi.fn(async () => {}),
-};
+const { fakeClient, createKernelClientMock } = vi.hoisted(() => {
+  const fakeClient = {
+    open: vi.fn(async () => ({
+      sessionId: "sess_1",
+      liveViewUrl: "https://live.example/sess_1",
+      cdpWsUrl: "wss://cdp.example/sess_1",
+    })),
+    snapshot: vi.fn(async () => ({ url: "https://example.com", title: "Example" })),
+    click: vi.fn(async () => {}),
+    type: vi.fn(async () => {}),
+    evaluate: vi.fn(async () => "eval-result"),
+    close: vi.fn(async () => {}),
+  };
+  const createKernelClientMock = vi.fn(() => fakeClient);
+  return { fakeClient, createKernelClientMock };
+});
 
 vi.mock("../src/kernel-client.js", () => ({
-  createKernelClient: () => fakeClient,
+  createKernelClient: createKernelClientMock,
 }));
 
 const { default: plugin } = await import("../src/server.js");
@@ -31,6 +34,11 @@ async function setup(settings: Record<string, PluginSettingValue> = { apiKey: "t
 describe("kernel-browser plugin", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fakeClient.open.mockResolvedValue({
+      sessionId: "sess_1",
+      liveViewUrl: "https://live.example/sess_1",
+      cdpWsUrl: "wss://cdp.example/sess_1",
+    });
   });
 
   it("opens a browser via the CLI and prints the live view url", async () => {
@@ -40,6 +48,16 @@ describe("kernel-browser plugin", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("sess_1");
     expect(result.stdout).toContain("https://live.example/sess_1");
+    expect(fakeClient.open).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "https://example.com", stealth: true }),
+    );
+  });
+
+  it("does not swallow a positional argument that follows a boolean flag", async () => {
+    const { harness } = await setup();
+    const result = await harness.behavior.runCli(["open", "--stealth", "https://example.com"]);
+
+    expect(result.exitCode).toBe(0);
     expect(fakeClient.open).toHaveBeenCalledWith(
       expect.objectContaining({ url: "https://example.com", stealth: true }),
     );
@@ -107,6 +125,64 @@ describe("kernel-browser plugin", () => {
     expect(result.stderr).toMatch(/not configured/);
   });
 
+  it("swaps the live Kernel client when apiKey changes, without a reload", async () => {
+    const { harness } = await setup();
+    expect(createKernelClientMock).toHaveBeenCalledWith("test-key");
+
+    await harness.behavior.setSettings({ apiKey: "rotated-key" });
+    expect(createKernelClientMock).toHaveBeenCalledWith("rotated-key");
+
+    const result = await harness.behavior.runCli(["open", "https://example.com"]);
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("publishes a realtime signal on open and on close, for CLI-driven targets too", async () => {
+    const { harness } = await setup();
+    await harness.behavior.runCli(["open", "https://example.com"], { threadId: "thread-a" });
+
+    expect(harness.realtimeSignals).toContainEqual(
+      expect.objectContaining({
+        channel: "kernel-browser:thread-a",
+        payload: expect.objectContaining({ event: "opened", targetId: "sess_1" }),
+      }),
+    );
+
+    await harness.behavior.runCli(["close", "sess_1"], { threadId: "thread-a" });
+    expect(harness.realtimeSignals).toContainEqual(
+      expect.objectContaining({
+        channel: "kernel-browser:thread-a",
+        payload: expect.objectContaining({ event: "closed", targetId: "sess_1" }),
+      }),
+    );
+  });
+
+  it("scopes latestForThread to the requesting thread, not just the most recent target overall", async () => {
+    const { harness } = await setup();
+    fakeClient.open.mockResolvedValueOnce({
+      sessionId: "sess_a",
+      liveViewUrl: "https://live.example/sess_a",
+      cdpWsUrl: "wss://cdp.example/sess_a",
+    });
+    await harness.behavior.runCli(["open", "https://a.example.com"], { threadId: "thread-a" });
+
+    fakeClient.open.mockResolvedValueOnce({
+      sessionId: "sess_b",
+      liveViewUrl: "https://live.example/sess_b",
+      cdpWsUrl: "wss://cdp.example/sess_b",
+    });
+    await harness.behavior.runCli(["open", "https://b.example.com"], { threadId: "thread-b" });
+
+    const forA = (await harness.behavior.callRpc("latestForThread", { threadId: "thread-a" })) as {
+      target: { targetId: string } | null;
+    };
+    expect(forA.target?.targetId).toBe("sess_a");
+
+    const forB = (await harness.behavior.callRpc("latestForThread", { threadId: "thread-b" })) as {
+      target: { targetId: string } | null;
+    };
+    expect(forB.target?.targetId).toBe("sess_b");
+  });
+
   it("closes every target for a thread when it is archived", async () => {
     const { harness } = await setup();
     // callAgentTool defaults its context threadId to "thread-test".
@@ -117,5 +193,22 @@ describe("kernel-browser plugin", () => {
     });
 
     expect(fakeClient.close).toHaveBeenCalledWith("sess_1");
+  });
+
+  it("logs and keeps the target when the remote close fails during thread cleanup", async () => {
+    const { harness } = await setup();
+    await harness.behavior.callAgentTool("kernel_browser_open", { url: "https://example.com" });
+    fakeClient.close.mockRejectedValueOnce(new Error("kernel API unreachable"));
+
+    await harness.behavior.emitThreadEvent("thread.archived", {
+      thread: makeThreadResponse({ id: "thread-test" }),
+    });
+
+    expect(harness.logEntries).toContainEqual(
+      expect.objectContaining({ level: "warn", message: expect.stringContaining("kernel API unreachable") }),
+    );
+
+    const snapshot = await harness.behavior.runCli(["snapshot", "sess_1"]);
+    expect(snapshot.exitCode).toBe(0);
   });
 });

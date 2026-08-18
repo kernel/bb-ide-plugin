@@ -1,4 +1,4 @@
-import type { KernelBrowserClient } from "./types.js";
+import type { KernelBrowserClient, KernelTarget } from "./types.js";
 import type { TargetStore } from "./store.js";
 import {
   MAX_EVAL_SCRIPT_LENGTH,
@@ -8,9 +8,12 @@ import {
   type TargetOrigin,
 } from "./types.js";
 
+export type TargetEvent = "opened" | "closed";
+
 export interface CommandContext {
   client: KernelBrowserClient;
   store: TargetStore;
+  notify(threadId: string | null, event: TargetEvent, targetId: string): void;
 }
 
 export interface OpenArgs {
@@ -47,6 +50,17 @@ function requireTarget(ctx: CommandContext, targetId: string) {
   return target;
 }
 
+function toSummary(target: KernelTarget): TargetSummary {
+  return {
+    targetId: target.targetId,
+    threadId: target.threadId,
+    createdBy: target.createdBy,
+    liveViewUrl: target.liveViewUrl,
+    createdAt: new Date(target.createdAt).toISOString(),
+    lastUsedAt: new Date(target.lastUsedAt).toISOString(),
+  };
+}
+
 export async function openTarget(ctx: CommandContext, args: OpenArgs): Promise<OpenSummary> {
   if (args.url && args.url.length > MAX_URL_LENGTH) {
     throw new Error(`url exceeds ${MAX_URL_LENGTH} characters`);
@@ -62,31 +76,17 @@ export async function openTarget(ctx: CommandContext, args: OpenArgs): Promise<O
     createdAt: now,
     lastUsedAt: now,
   });
+  ctx.notify(args.threadId, "opened", opened.sessionId);
   return { targetId: opened.sessionId, liveViewUrl: opened.liveViewUrl };
 }
 
 export async function listTargets(ctx: CommandContext): Promise<TargetSummary[]> {
-  return ctx.store.listAll().map((target) => ({
-    targetId: target.targetId,
-    threadId: target.threadId,
-    createdBy: target.createdBy,
-    liveViewUrl: target.liveViewUrl,
-    createdAt: new Date(target.createdAt).toISOString(),
-    lastUsedAt: new Date(target.lastUsedAt).toISOString(),
-  }));
+  return ctx.store.listAll().map(toSummary);
 }
 
 export async function latestTargetForThread(ctx: CommandContext, threadId: string): Promise<TargetSummary | null> {
   const [target] = ctx.store.listByThread(threadId);
-  if (!target) return null;
-  return {
-    targetId: target.targetId,
-    threadId: target.threadId,
-    createdBy: target.createdBy,
-    liveViewUrl: target.liveViewUrl,
-    createdAt: new Date(target.createdAt).toISOString(),
-    lastUsedAt: new Date(target.lastUsedAt).toISOString(),
-  };
+  return target ? toSummary(target) : null;
 }
 
 export async function snapshotTarget(ctx: CommandContext, targetId: string) {
@@ -136,14 +136,27 @@ export async function evaluateInTarget(ctx: CommandContext, targetId: string, sc
 }
 
 export async function closeTarget(ctx: CommandContext, targetId: string): Promise<void> {
-  requireTarget(ctx, targetId);
+  const target = requireTarget(ctx, targetId);
   await ctx.client.close(targetId);
   ctx.store.remove(targetId);
+  ctx.notify(target.threadId, "closed", targetId);
 }
 
-export async function closeTargetsForThread(ctx: CommandContext, threadId: string): Promise<void> {
+export interface CloseFailure {
+  targetId: string;
+  error: string;
+}
+
+export async function closeTargetsForThread(ctx: CommandContext, threadId: string): Promise<CloseFailure[]> {
+  const failures: CloseFailure[] = [];
   for (const target of ctx.store.listByThread(threadId)) {
-    await ctx.client.close(target.targetId).catch(() => {});
-    ctx.store.remove(target.targetId);
+    try {
+      await ctx.client.close(target.targetId);
+      ctx.store.remove(target.targetId);
+      ctx.notify(target.threadId, "closed", target.targetId);
+    } catch (error) {
+      failures.push({ targetId: target.targetId, error: error instanceof Error ? error.message : String(error) });
+    }
   }
+  return failures;
 }

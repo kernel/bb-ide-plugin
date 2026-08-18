@@ -24,13 +24,6 @@ export interface OpenResult {
   cdpWsUrl: string;
 }
 
-export interface RemoteBrowserSummary {
-  sessionId: string;
-  liveViewUrl: string | null;
-  createdAt: string;
-  headless: boolean;
-}
-
 export interface SnapshotResult {
   url: string;
   title: string;
@@ -49,7 +42,6 @@ export interface TypeTarget {
 
 export interface KernelBrowserClient {
   open(opts: OpenOptions): Promise<OpenResult>;
-  list(): Promise<RemoteBrowserSummary[]>;
   snapshot(sessionId: string): Promise<SnapshotResult>;
   click(sessionId: string, target: ClickTarget): Promise<void>;
   type(sessionId: string, target: TypeTarget): Promise<void>;

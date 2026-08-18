@@ -38,6 +38,9 @@ export default async function plugin(bb: BbPluginApi) {
       return client;
     },
     store,
+    notify(threadId, event, targetId) {
+      if (threadId) bb.realtime.publish(`kernel-browser:${threadId}`, { event, targetId });
+    },
   };
 
   registerRpc(bb, ctx);
@@ -100,7 +103,6 @@ export default async function plugin(bb: BbPluginApi) {
         threadId,
         createdBy: "agent",
       });
-      bb.realtime.publish(`kernel-browser:${threadId}`, opened);
       return opened.liveViewUrl
         ? `Opened ${opened.targetId}. Live view: ${opened.liveViewUrl}`
         : `Opened ${opened.targetId} (headless — no live view).`;
@@ -171,10 +173,17 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
+  async function closeTargetsForThreadLogged(threadId: string): Promise<void> {
+    const failures = await commands.closeTargetsForThread(ctx, threadId);
+    for (const failure of failures) {
+      bb.log.warn(`failed to close target ${failure.targetId} for thread ${threadId}: ${failure.error}`);
+    }
+  }
+
   bb.events.on("thread.archived", async ({ thread }) => {
-    await commands.closeTargetsForThread(ctx, thread.id).catch(() => {});
+    await closeTargetsForThreadLogged(thread.id);
   });
   bb.events.on("thread.deleted", async ({ thread }) => {
-    await commands.closeTargetsForThread(ctx, thread.id).catch(() => {});
+    await closeTargetsForThreadLogged(thread.id);
   });
 }

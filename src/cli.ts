@@ -16,6 +16,8 @@ interface CliResult {
 
 type Flags = Record<string, string | boolean>;
 
+const BOOLEAN_FLAGS = new Set(["stealth", "headless", "json"]);
+
 function parseArgs(args: string[]): { positionals: string[]; flags: Flags } {
   const positionals: string[] = [];
   const flags: Flags = {};
@@ -24,7 +26,7 @@ function parseArgs(args: string[]): { positionals: string[]; flags: Flags } {
     if (arg?.startsWith("--")) {
       const name = arg.slice(2);
       const next = args[i + 1];
-      if (next !== undefined && !next.startsWith("--")) {
+      if (!BOOLEAN_FLAGS.has(name) && next !== undefined && !next.startsWith("--")) {
         flags[name] = next;
         i++;
       } else {
