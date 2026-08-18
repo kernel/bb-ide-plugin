@@ -19,8 +19,12 @@ disconnects, and comes with stealth/anti-bot handling built in.
 - Native agent tools (`kernel_browser_open`, `_snapshot`, `_click`, `_type`,
   `_eval`, `_close`) that wrap the same commands, so a session with native
   tool support doesn't need to shell out to the CLI.
-- A thread panel ("Kernel Browser") that iframes the live view URL of the
-  most recently opened target for that thread, with a close button.
+- A thread panel ("Kernel Browser") that iframes a target's live view URL,
+  with a close button.
+- A `::kernel-live-view{targetId="..."}` chat message directive — the
+  `kernel_browser_open` agent tool returns it instead of a raw live view URL,
+  so the agent's reply renders a "Watch live" control that opens the target
+  in the Kernel Browser panel rather than a link that leaves the app.
 - Target ownership tracking: every action is scoped to a target this plugin
   opened. Acting on an unknown or already-closed target fails with a clear
   error instead of silently doing nothing.

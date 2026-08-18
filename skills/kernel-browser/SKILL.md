@@ -16,8 +16,11 @@ desktop app window open.
 - Any task that needs to load a real page: read rendered content, check
   whether something shipped, fill in a form, log into a site.
 - Sites protected by bot detection. Pass `--stealth` on `open`.
-- Anything the user might want to watch. Share the `Watch it live:` URL
-  `open` prints — don't just say "I opened a browser."
+- Anything the user might want to watch. From the CLI, share the
+  `Watch it live:` URL `open` prints. From the native `kernel_browser_open`
+  tool, paste the `::kernel-live-view{...}` marker it returns verbatim into
+  your reply — it renders as a control that opens the Kernel Browser panel,
+  not a raw live view link. Either way, don't just say "I opened a browser."
 - Long-running or resumable work: the Kernel session outlives this thread's
   runtime, so a browser opened here is still there if the thread is resumed
   later. Always `close` it when the task is done so it doesn't run forever

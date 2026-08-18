@@ -89,8 +89,9 @@ export default async function plugin(bb: BbPluginApi) {
   bb.agents.registerTool({
     name: "kernel_browser_open",
     description:
-      "Open a real, cloud-hosted Chrome browser via Kernel and get back a target id plus a live view URL " +
-      "the user can watch. Use this for any task that needs a browser.",
+      "Open a real, cloud-hosted Chrome browser via Kernel and get back a target id plus, when the session " +
+      "is headful, a `::kernel-live-view{...}` marker — include that marker verbatim in your reply so the " +
+      "user gets a live control that opens the Kernel Browser panel. Use this for any task that needs a browser.",
     experimental_statusLabels: { pending: "Opening a Kernel browser", completed: "Opened a Kernel browser" },
     parameters: z.object({
       url: z.string().max(MAX_URL_LENGTH).optional().describe("URL to navigate to on open"),
@@ -104,7 +105,7 @@ export default async function plugin(bb: BbPluginApi) {
         createdBy: "agent",
       });
       return opened.liveViewUrl
-        ? `Opened ${opened.targetId}. Live view: ${opened.liveViewUrl}`
+        ? `Opened ${opened.targetId}.\n\n::kernel-live-view{targetId="${opened.targetId}"}`
         : `Opened ${opened.targetId} (headless — no live view).`;
     },
   });

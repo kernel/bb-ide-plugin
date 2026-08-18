@@ -36,13 +36,16 @@
   },
   "devDependencies": {
     "@get-bb/plugin-sdk": "^0.4.6",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "bb-app": "^0.38.0",
     "better-sqlite3": "^12.0.0",
     "cron-parser": "^5.10.0",
     "hono": "^4.13.2",
+    "jsdom": "^25.0.1",
     "react": "^19.0.0",
+    "react-dom": "^19.2.8",
     "typescript": "^5.6.0",
     "vitest": "^4.1.1"
   }

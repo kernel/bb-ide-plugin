@@ -1,18 +1,25 @@
-import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useBbNavigate, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import type { PluginMessageDirectiveProps, PluginThreadPanelProps } from "@get-bb/plugin-sdk/app";
 import { useCallback, useEffect, useState } from "react";
 import type { rpcContract, TargetDto } from "./src/rpc.js";
 
-function LiveViewPanel({ threadId }: { threadId: string }) {
+function targetIdFromParams(params: PluginThreadPanelProps["params"]): string | null {
+  if (params && typeof params === "object" && !Array.isArray(params) && typeof params.targetId === "string") {
+    return params.targetId;
+  }
+  return null;
+}
+
+function LiveViewPanel({ threadId, params }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof rpcContract>();
+  const targetId = targetIdFromParams(params);
   const [target, setTarget] = useState<TargetDto | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(() => {
-    rpc
-      .call("latestForThread", { threadId })
-      .then((res) => setTarget(res.target))
-      .finally(() => setLoading(false));
-  }, [rpc, threadId]);
+    const call = targetId ? rpc.call("forTarget", { targetId }) : rpc.call("latestForThread", { threadId });
+    call.then((res) => setTarget(res.target)).finally(() => setLoading(false));
+  }, [rpc, threadId, targetId]);
 
   useEffect(() => {
     refresh();
@@ -78,11 +85,33 @@ function LiveViewPanel({ threadId }: { threadId: string }) {
   );
 }
 
+function LiveViewChip({ attributes }: PluginMessageDirectiveProps) {
+  const navigate = useBbNavigate();
+  const targetId = attributes.targetId;
+
+  if (!targetId) return null;
+
+  return (
+    <button
+      onClick={() =>
+        navigate.openThreadPanel({ actionId: "kernel-browser", title: "Kernel Browser", params: { targetId } })
+      }
+    >
+      ▶ Watch live
+    </button>
+  );
+}
+
 export default definePluginApp((app) => {
   app.slots.threadPanelAction({
     id: "kernel-browser",
     title: "Kernel Browser",
     component: LiveViewPanel,
     run: async ({ threadId, openPanel }) => openPanel({ title: "Kernel Browser" }),
+  });
+
+  app.slots.messageDirective({
+    id: "kernel-live-view",
+    component: LiveViewChip,
   });
 });

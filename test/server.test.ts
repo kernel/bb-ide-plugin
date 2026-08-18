@@ -1,14 +1,17 @@
 import type { PluginSettingValue } from "@get-bb/plugin-sdk";
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { OpenResult } from "../src/types.js";
 
 const { fakeClient, createKernelClientMock } = vi.hoisted(() => {
   const fakeClient = {
-    open: vi.fn(async () => ({
-      sessionId: "sess_1",
-      liveViewUrl: "https://live.example/sess_1",
-      cdpWsUrl: "wss://cdp.example/sess_1",
-    })),
+    open: vi.fn(
+      async (): Promise<OpenResult> => ({
+        sessionId: "sess_1",
+        liveViewUrl: "https://live.example/sess_1",
+        cdpWsUrl: "wss://cdp.example/sess_1",
+      }),
+    ),
     snapshot: vi.fn(async () => ({ url: "https://example.com", title: "Example" })),
     click: vi.fn(async () => {}),
     type: vi.fn(async () => {}),
@@ -106,6 +109,7 @@ describe("kernel-browser plugin", () => {
       url: "https://example.com",
     })) as string;
     expect(openText).toContain("sess_1");
+    expect(openText).toContain('::kernel-live-view{targetId="sess_1"}');
 
     const clickResult = await harness.behavior.callAgentTool("kernel_browser_click", {
       targetId: "sess_1",
@@ -113,6 +117,22 @@ describe("kernel-browser plugin", () => {
     });
     expect(clickResult).toBe("clicked");
     expect(fakeClient.click).toHaveBeenCalledWith("sess_1", { selector: "#submit", x: undefined, y: undefined });
+  });
+
+  it("skips the live-view directive for a headless open", async () => {
+    const { harness } = await setup();
+    fakeClient.open.mockResolvedValueOnce({
+      sessionId: "sess_headless",
+      liveViewUrl: null,
+      cdpWsUrl: "wss://cdp.example/sess_headless",
+    });
+
+    const openText = (await harness.behavior.callAgentTool("kernel_browser_open", {
+      url: "https://example.com",
+    })) as string;
+
+    expect(openText).toContain("sess_headless");
+    expect(openText).not.toContain("kernel-live-view");
   });
 
   it("reports needs-configuration when no api key is set", async () => {
@@ -181,6 +201,22 @@ describe("kernel-browser plugin", () => {
       target: { targetId: string } | null;
     };
     expect(forB.target?.targetId).toBe("sess_b");
+  });
+
+  it("looks up a target by id via forTarget, for the live-view chip's panel navigation", async () => {
+    const { harness } = await setup();
+    await harness.behavior.runCli(["open", "https://example.com"], { threadId: "thread-a" });
+
+    const found = (await harness.behavior.callRpc("forTarget", { targetId: "sess_1" })) as {
+      target: { targetId: string; threadId: string } | null;
+    };
+    expect(found.target?.targetId).toBe("sess_1");
+    expect(found.target?.threadId).toBe("thread-a");
+
+    const missing = (await harness.behavior.callRpc("forTarget", { targetId: "sess_unknown" })) as {
+      target: unknown | null;
+    };
+    expect(missing.target).toBeNull();
   });
 
   it("closes every target for a thread when it is archived", async () => {
