@@ -7,9 +7,8 @@ setup beyond an API key.
 
 ## Why you'd want this
 
-bb has no browser primitive of its own yet, so today an agent that needs the
-web is stuck guessing at page content or giving up on anything behind a
-login. With this plugin, an agent can:
+Kernel gives any bb agent a real, cloud-hosted browser to work with. With
+this plugin, an agent can:
 
 - **Log into real accounts and get real work done** — check a dashboard,
   file a form, pull a report — on sites that need a real, cookie-carrying
