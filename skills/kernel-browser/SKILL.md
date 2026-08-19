@@ -17,7 +17,10 @@ desktop app window open.
   whether something shipped, fill in a form, log into a site.
 - Sites protected by bot detection. Pass `--stealth` on `open`.
 - Anything the user might want to watch. Share the `Watch it live:` URL
-  `open` prints — don't just say "I opened a browser."
+  `open` prints — don't just say "I opened a browser." Better still, put
+  `::kernel-live{target-id="<target-id>"}` on its own line in your reply —
+  bb renders it as an embedded live view right in the chat instead of just a
+  link.
 - Long-running or resumable work: the Kernel session outlives this thread's
   runtime, so a browser opened here is still there if the thread is resumed
   later. Always `close` it when the task is done so it doesn't run forever

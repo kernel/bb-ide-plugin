@@ -1,61 +1,61 @@
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import type { PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import { useCallback, useEffect, useState } from "react";
 import type { rpcContract, TargetDto } from "./src/rpc.js";
 
-function LiveViewPanel({ threadId }: { threadId: string }) {
+function KernelLiveDirective({ attributes, message }: PluginMessageDirectiveProps) {
+  const targetId = attributes["target-id"];
   const rpc = useRpc<typeof rpcContract>();
   const [target, setTarget] = useState<TargetDto | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(() => {
+    if (!targetId) {
+      setLoading(false);
+      return;
+    }
     rpc
-      .call("latestForThread", { threadId })
+      .call("getTarget", { targetId })
       .then((res) => setTarget(res.target))
       .finally(() => setLoading(false));
-  }, [rpc, threadId]);
+  }, [rpc, targetId]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  useRealtime(`kernel-browser:${threadId}`, refresh);
+  useRealtime(`kernel-browser:${message.threadId}`, refresh);
 
   async function close() {
-    if (!target) return;
-    await rpc.call("close", { targetId: target.targetId });
+    if (!targetId) return;
+    await rpc.call("close", { targetId });
     setTarget(null);
   }
 
-  if (loading) return <div style={{ padding: 16 }}>Loading…</div>;
+  if (!targetId) {
+    return <div style={{ padding: 8, fontSize: 13 }}>Missing target-id.</div>;
+  }
+
+  if (loading) return <div style={{ padding: 8, fontSize: 13 }}>Loading…</div>;
 
   if (!target) {
-    return (
-      <div style={{ padding: 16 }}>
-        No Kernel browser opened in this thread yet. Ask the agent to open one, or run{" "}
-        <code>bb kernel-browser open &lt;url&gt;</code>.
-      </div>
-    );
+    return <div style={{ padding: 8, fontSize: 13 }}>Target {targetId} is closed or unknown.</div>;
   }
 
   if (!target.liveViewUrl) {
-    return (
-      <div style={{ padding: 16 }}>
-        <p>Target {target.targetId} is headless — no live view.</p>
-        <button onClick={close}>Close</button>
-      </div>
-    );
+    return <div style={{ padding: 8, fontSize: 13 }}>Target {target.targetId} is headless — no live view.</div>;
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ border: "1px solid rgba(128, 128, 128, 0.25)", borderRadius: 8, overflow: "hidden" }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: "8px 12px",
+          padding: "6px 10px",
           borderBottom: "1px solid rgba(128, 128, 128, 0.25)",
-          fontSize: 13,
+          fontSize: 12,
         }}
       >
         <span>{target.targetId}</span>
@@ -71,7 +71,7 @@ function LiveViewPanel({ threadId }: { threadId: string }) {
       <iframe
         title="Kernel live view"
         src={target.liveViewUrl}
-        style={{ flex: 1, border: "none" }}
+        style={{ width: "100%", height: 480, border: "none" }}
         allow="clipboard-read; clipboard-write"
       />
     </div>
@@ -79,10 +79,8 @@ function LiveViewPanel({ threadId }: { threadId: string }) {
 }
 
 export default definePluginApp((app) => {
-  app.slots.threadPanelAction({
-    id: "kernel-browser",
-    title: "Kernel Browser",
-    component: LiveViewPanel,
-    run: async ({ threadId, openPanel }) => openPanel({ title: "Kernel Browser" }),
+  app.slots.messageDirective({
+    id: "kernel-live",
+    component: KernelLiveDirective,
   });
 });

@@ -13,8 +13,8 @@ const targetSchema = z.object({
 });
 
 export const rpcContract = defineRpcContract({
-  latestForThread: {
-    input: z.object({ threadId: z.string() }).strict(),
+  getTarget: {
+    input: z.object({ targetId: z.string() }).strict(),
     output: z.object({ target: targetSchema.nullable() }),
   },
   close: {
@@ -27,8 +27,8 @@ export type TargetDto = z.infer<typeof targetSchema>;
 
 export function registerRpc(bb: BbPluginApi, ctx: CommandContext): void {
   bb.rpc.register(rpcContract, {
-    async latestForThread({ threadId }) {
-      const target = await commands.latestTargetForThread(ctx, threadId);
+    async getTarget({ targetId }) {
+      const target = await commands.getTarget(ctx, targetId);
       return { target };
     },
     async close({ targetId }) {

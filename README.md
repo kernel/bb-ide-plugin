@@ -33,9 +33,10 @@ this plugin, an agent can:
 - Native agent tools (`kernel_browser_open`, `_snapshot`, `_click`, `_type`,
   `_eval`, `_close`) that wrap the same commands, so a session with native
   tool support doesn't need to shell out to the CLI.
-- A thread panel ("Kernel Browser") that iframes the live view URL of the
-  most recently opened target for that thread, with a close button — watch
-  right alongside the conversation.
+- An inline live view: an agent's reply can include
+  `::kernel-live{target-id="<target-id>"}` and bb renders it as an embedded
+  iframe of that target's live view, right in the message — `kernel_browser_open`
+  nudges the model to do this automatically.
 - Target ownership tracking: every action is scoped to a target this plugin
   opened. Acting on an unknown or already-closed target fails with a clear
   error instead of silently doing nothing.
@@ -89,7 +90,8 @@ on first use) compiles `dist/server.js` and `dist/app.js` and is what a
   logic, shared by the CLI, the agent tools, and the RPC layer.
 - `src/cli.ts`, `src/server.ts` — `bb.cli.register` / `bb.agents.registerTool`
   glue.
-- `src/rpc.ts`, `app.tsx` — the thread panel's data plane and UI.
+- `src/rpc.ts`, `app.tsx` — the `kernel-live` message directive's data plane
+  (look up a target by id, close it) and UI (the embedded iframe).
 
 ## License
 

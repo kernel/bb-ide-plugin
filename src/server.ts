@@ -91,6 +91,9 @@ export default async function plugin(bb: BbPluginApi) {
     description:
       "Open a real, cloud-hosted Chrome browser via Kernel and get back a target id plus a live view URL " +
       "the user can watch. Use this for any task that needs a browser.",
+    instructions:
+      "After opening a headful Kernel browser, include `::kernel-live{target-id=\"<target-id>\"}` on its own " +
+      "line in your reply so the user sees the live view embedded inline in the chat, instead of just a link.",
     experimental_statusLabels: { pending: "Opening a Kernel browser", completed: "Opened a Kernel browser" },
     parameters: z.object({
       url: z.string().max(MAX_URL_LENGTH).optional().describe("URL to navigate to on open"),

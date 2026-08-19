@@ -156,31 +156,26 @@ describe("kernel-browser plugin", () => {
     );
   });
 
-  it("scopes latestForThread to the requesting thread, not just the most recent target overall", async () => {
+  it("looks up a target by id for the inline live view directive, and returns null once closed", async () => {
     const { harness } = await setup();
-    fakeClient.open.mockResolvedValueOnce({
-      sessionId: "sess_a",
-      liveViewUrl: "https://live.example/sess_a",
-      cdpWsUrl: "wss://cdp.example/sess_a",
-    });
-    await harness.behavior.runCli(["open", "https://a.example.com"], { threadId: "thread-a" });
+    await harness.behavior.runCli(["open", "https://example.com"], { threadId: "thread-a" });
 
-    fakeClient.open.mockResolvedValueOnce({
-      sessionId: "sess_b",
-      liveViewUrl: "https://live.example/sess_b",
-      cdpWsUrl: "wss://cdp.example/sess_b",
-    });
-    await harness.behavior.runCli(["open", "https://b.example.com"], { threadId: "thread-b" });
-
-    const forA = (await harness.behavior.callRpc("latestForThread", { threadId: "thread-a" })) as {
-      target: { targetId: string } | null;
+    const found = (await harness.behavior.callRpc("getTarget", { targetId: "sess_1" })) as {
+      target: { targetId: string; liveViewUrl: string | null } | null;
     };
-    expect(forA.target?.targetId).toBe("sess_a");
+    expect(found.target?.targetId).toBe("sess_1");
+    expect(found.target?.liveViewUrl).toBe("https://live.example/sess_1");
 
-    const forB = (await harness.behavior.callRpc("latestForThread", { threadId: "thread-b" })) as {
-      target: { targetId: string } | null;
+    const missing = (await harness.behavior.callRpc("getTarget", { targetId: "sess_unknown" })) as {
+      target: unknown;
     };
-    expect(forB.target?.targetId).toBe("sess_b");
+    expect(missing.target).toBeNull();
+
+    await harness.behavior.callRpc("close", { targetId: "sess_1" });
+    const afterClose = (await harness.behavior.callRpc("getTarget", { targetId: "sess_1" })) as {
+      target: unknown;
+    };
+    expect(afterClose.target).toBeNull();
   });
 
   it("closes every target for a thread when it is archived", async () => {
