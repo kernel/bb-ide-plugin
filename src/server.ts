@@ -80,6 +80,21 @@ export default async function plugin(bb: BbPluginApi) {
         summary: "Close a target and delete its Kernel session",
         usage: "bb kernel-browser close <target-id>",
       },
+      {
+        name: "replay-start",
+        summary: "Start recording a video replay of a target",
+        usage: "bb kernel-browser replay-start <target-id> [--framerate <fps>] [--max-duration <seconds>] [--audio] [--json]",
+      },
+      {
+        name: "replay-stop",
+        summary: "Stop a replay recording and persist the video",
+        usage: "bb kernel-browser replay-stop <target-id> --replay-id <id> [--json]",
+      },
+      {
+        name: "replay-list",
+        summary: "List replay recordings for a target",
+        usage: "bb kernel-browser replay-list <target-id> [--json]",
+      },
     ],
     async run(argv, runCtx) {
       return runCli(bb, ctx, argv, runCtx);
@@ -173,6 +188,46 @@ export default async function plugin(bb: BbPluginApi) {
     async execute({ targetId }) {
       await commands.closeTarget(ctx, targetId);
       return "closed";
+    },
+  });
+
+  bb.agents.registerTool({
+    name: "kernel_browser_replay_start",
+    description:
+      "Start recording a video replay of an open Kernel browser target and return a replay id. Call " +
+      "kernel_browser_replay_stop to persist the video once the recorded activity is done.",
+    parameters: z.object({
+      targetId: z.string(),
+      framerate: z.number().optional().describe("Recording framerate in fps; values above 20 require GPU"),
+      maxDurationSeconds: z.number().optional().describe("Maximum recording duration in seconds"),
+      recordAudio: z.boolean().optional().describe("Record audio in addition to video (default: video-only)"),
+    }),
+    async execute({ targetId, framerate, maxDurationSeconds, recordAudio }) {
+      const replay = await commands.startReplay(ctx, targetId, { framerate, maxDurationSeconds, recordAudio });
+      return `Started replay ${replay.replayId}`;
+    },
+  });
+
+  bb.agents.registerTool({
+    name: "kernel_browser_replay_stop",
+    description: "Stop an in-progress replay recording on a Kernel browser target and persist the finished video.",
+    parameters: z.object({ targetId: z.string(), replayId: z.string() }),
+    async execute({ targetId, replayId }) {
+      await commands.stopReplay(ctx, targetId, replayId);
+      return "stopped";
+    },
+  });
+
+  bb.agents.registerTool({
+    name: "kernel_browser_replay_list",
+    description:
+      "List video replay recordings for an open Kernel browser target, including view URLs once finished.",
+    parameters: z.object({ targetId: z.string() }),
+    async execute({ targetId }) {
+      const replays = await commands.listReplays(ctx, targetId);
+      return replays.length
+        ? replays.map((r) => `${r.replayId}: ${r.replayViewUrl ?? "processing"}`).join("\n")
+        : "no replays";
     },
   });
 

@@ -27,12 +27,16 @@ this plugin, an agent can:
 
 ## What it adds
 
-- `bb kernel-browser open|list|snapshot|click|type|eval|close` — see
-  [`skills/kernel-browser/SKILL.md`](skills/kernel-browser/SKILL.md) for the
-  full command reference.
+- `bb kernel-browser open|list|snapshot|click|type|eval|close|replay-start|replay-stop|replay-list`
+  — see [`skills/kernel-browser/SKILL.md`](skills/kernel-browser/SKILL.md) for
+  the full command reference.
 - Native agent tools (`kernel_browser_open`, `_snapshot`, `_click`, `_type`,
-  `_eval`, `_close`) that wrap the same commands, so a session with native
-  tool support doesn't need to shell out to the CLI.
+  `_eval`, `_close`, `_replay_start`, `_replay_stop`, `_replay_list`) that wrap
+  the same commands, so a session with native tool support doesn't need to
+  shell out to the CLI.
+- Video replays: record a target's session (`replay-start`), stop it to
+  persist the video (`replay-stop`), and list past recordings with their
+  view URLs (`replay-list`) — same target ownership rules as everything else.
 - An inline live view: an agent's reply can include
   `::kernel-live{target-id="<target-id>"}` and bb renders it as an embedded
   iframe of that target's live view, right in the message — `kernel_browser_open`
@@ -86,7 +90,7 @@ on first use) compiles `dist/server.js` and `dist/app.js` and is what a
 - `src/store.ts` — the plugin's own SQLite table of open targets
   (`target_id`, `thread_id`, `created_by`, live view URL, timestamps), used
   to enforce that every command only acts on a target this plugin opened.
-- `src/commands.ts` — the actual open/list/snapshot/click/type/eval/close
+- `src/commands.ts` — the actual open/list/snapshot/click/type/eval/close/replay
   logic, shared by the CLI, the agent tools, and the RPC layer.
 - `src/cli.ts`, `src/server.ts` — `bb.cli.register` / `bb.agents.registerTool`
   glue.

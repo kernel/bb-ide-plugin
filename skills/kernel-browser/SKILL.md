@@ -40,6 +40,9 @@ bb kernel-browser click <target-id> --selector <css> | --x <n> --y <n>
 bb kernel-browser type <target-id> --text <text> [--selector <css>]
 bb kernel-browser eval <target-id> --script <code> | --script-file <path> [--json]
 bb kernel-browser close <target-id>
+bb kernel-browser replay-start <target-id> [--framerate <fps>] [--max-duration <seconds>] [--audio] [--json]
+bb kernel-browser replay-stop <target-id> --replay-id <id> [--json]
+bb kernel-browser replay-list <target-id> [--json]
 ```
 
 `open` returns a `target-id` (a Kernel browser session id) plus a live view
@@ -49,10 +52,17 @@ Kernel session, so `click`/`type`/`eval`/`snapshot`/`close` fail with a clear
 error against anything this plugin didn't open.
 
 Native tools `kernel_browser_open`, `kernel_browser_snapshot`,
-`kernel_browser_click`, `kernel_browser_type`, `kernel_browser_eval`, and
-`kernel_browser_close` wrap the same commands — prefer the tools when
-available; fall back to the CLI form when they aren't in this session's tool
-set.
+`kernel_browser_click`, `kernel_browser_type`, `kernel_browser_eval`,
+`kernel_browser_close`, `kernel_browser_replay_start`,
+`kernel_browser_replay_stop`, and `kernel_browser_replay_list` wrap the same
+commands — prefer the tools when available; fall back to the CLI form when
+they aren't in this session's tool set.
+
+`replay-start` begins recording video of a target and returns a `replay-id`;
+`replay-stop` persists it (recordings aren't watchable until stopped);
+`replay-list` returns each recording's `replay-id` and view URL once
+processed. Use this for a durable record of what happened, distinct from the
+live view — the live view only shows what's happening right now.
 
 ## Usage guidance
 
