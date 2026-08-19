@@ -33,9 +33,6 @@ this plugin, an agent can:
 - Native agent tools (`kernel_browser_open`, `_snapshot`, `_click`, `_type`,
   `_eval`, `_close`) that wrap the same commands, so a session with native
   tool support doesn't need to shell out to the CLI.
-- A thread panel ("Kernel Browser") that iframes the live view URL of the
-  most recently opened target for that thread, with a close button — watch
-  right alongside the conversation.
 - Target ownership tracking: every action is scoped to a target this plugin
   opened. Acting on an unknown or already-closed target fails with a clear
   error instead of silently doing nothing.
@@ -72,8 +69,8 @@ Kernel client is mocked. Against a real bb checkout, `bb plugin dev` (run
 from this directory) watches sources and reloads the plugin on every save.
 
 `bb plugin build` (no server required — it downloads its own build toolchain
-on first use) compiles `dist/server.js` and `dist/app.js` and is what a
-`git:` install runs automatically.
+on first use) compiles `dist/server.js` and is what a `git:` install runs
+automatically.
 
 ## Architecture
 
@@ -89,7 +86,6 @@ on first use) compiles `dist/server.js` and `dist/app.js` and is what a
   logic, shared by the CLI, the agent tools, and the RPC layer.
 - `src/cli.ts`, `src/server.ts` — `bb.cli.register` / `bb.agents.registerTool`
   glue.
-- `src/rpc.ts`, `app.tsx` — the thread panel's data plane and UI.
 
 ## License
 

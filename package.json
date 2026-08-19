@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Drive Kernel cloud browsers from bb — CLI commands, agent tools, and a thread panel live view.",
+  "description": "Drive Kernel cloud browsers from bb — CLI commands and agent tools.",
   "engines": {
     "bb": ">=0.9",
     "bbPluginSdk": ">=0.4.3"
@@ -15,7 +15,6 @@
       "icon": "Globe"
     },
     "server": "./src/server.ts",
-    "app": "./app.tsx",
     "skills": [
       "skills"
     ]
@@ -37,12 +36,9 @@
   "devDependencies": {
     "@get-bb/plugin-sdk": "^0.4.8",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "bb-app": "^0.38.0",
     "better-sqlite3": "^12.0.0",
     "cron-parser": "^5.10.0",
     "hono": "^4.13.2",
-    "react": "^19.0.0",
     "typescript": "^5.6.0",
     "vitest": "^4.1.1"
   }

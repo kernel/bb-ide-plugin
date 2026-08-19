@@ -4,7 +4,6 @@ import * as commands from "./commands.js";
 import type { CommandContext } from "./commands.js";
 import { runCli } from "./cli.js";
 import { createKernelClient } from "./kernel-client.js";
-import { registerRpc } from "./rpc.js";
 import { createTargetStore } from "./store.js";
 import { MAX_EVAL_SCRIPT_LENGTH, MAX_SELECTOR_LENGTH, MAX_TYPE_TEXT_LENGTH, MAX_URL_LENGTH } from "./types.js";
 import type { KernelBrowserClient } from "./types.js";
@@ -42,8 +41,6 @@ export default async function plugin(bb: BbPluginApi) {
       if (threadId) bb.realtime.publish(`kernel-browser:${threadId}`, { event, targetId });
     },
   };
-
-  registerRpc(bb, ctx);
 
   bb.cli.register({
     name: "kernel-browser",

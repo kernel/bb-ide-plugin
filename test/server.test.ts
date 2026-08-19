@@ -156,33 +156,6 @@ describe("kernel-browser plugin", () => {
     );
   });
 
-  it("scopes latestForThread to the requesting thread, not just the most recent target overall", async () => {
-    const { harness } = await setup();
-    fakeClient.open.mockResolvedValueOnce({
-      sessionId: "sess_a",
-      liveViewUrl: "https://live.example/sess_a",
-      cdpWsUrl: "wss://cdp.example/sess_a",
-    });
-    await harness.behavior.runCli(["open", "https://a.example.com"], { threadId: "thread-a" });
-
-    fakeClient.open.mockResolvedValueOnce({
-      sessionId: "sess_b",
-      liveViewUrl: "https://live.example/sess_b",
-      cdpWsUrl: "wss://cdp.example/sess_b",
-    });
-    await harness.behavior.runCli(["open", "https://b.example.com"], { threadId: "thread-b" });
-
-    const forA = (await harness.behavior.callRpc("latestForThread", { threadId: "thread-a" })) as {
-      target: { targetId: string } | null;
-    };
-    expect(forA.target?.targetId).toBe("sess_a");
-
-    const forB = (await harness.behavior.callRpc("latestForThread", { threadId: "thread-b" })) as {
-      target: { targetId: string } | null;
-    };
-    expect(forB.target?.targetId).toBe("sess_b");
-  });
-
   it("closes every target for a thread when it is archived", async () => {
     const { harness } = await setup();
     // callAgentTool defaults its context threadId to "thread-test".
