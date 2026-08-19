@@ -250,6 +250,31 @@ describe("kernel-browser plugin", () => {
     expect(afterClose.target).toBeNull();
   });
 
+  it("looks up a replay by id for the inline replay directive, before and after it finishes processing", async () => {
+    const { harness } = await setup();
+    await harness.behavior.runCli(["open", "https://example.com"]);
+    await harness.behavior.runCli(["replay-start", "sess_1"]);
+
+    const found = (await harness.behavior.callRpc("getReplay", {
+      targetId: "sess_1",
+      replayId: "replay_1",
+    })) as { replay: { replayId: string; replayViewUrl: string | null } | null };
+    expect(found.replay?.replayId).toBe("replay_1");
+    expect(found.replay?.replayViewUrl).toBe("https://replay.example/replay_1");
+
+    const missing = (await harness.behavior.callRpc("getReplay", {
+      targetId: "sess_1",
+      replayId: "replay_unknown",
+    })) as { replay: unknown };
+    expect(missing.replay).toBeNull();
+
+    const onUnknownTarget = harness.behavior.callRpc("getReplay", {
+      targetId: "sess_unknown",
+      replayId: "replay_1",
+    });
+    await expect(onUnknownTarget).rejects.toThrow(/unknown target/);
+  });
+
   it("closes every target for a thread when it is archived", async () => {
     const { harness } = await setup();
     // callAgentTool defaults its context threadId to "thread-test".

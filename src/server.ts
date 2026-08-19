@@ -211,6 +211,9 @@ export default async function plugin(bb: BbPluginApi) {
   bb.agents.registerTool({
     name: "kernel_browser_replay_stop",
     description: "Stop an in-progress replay recording on a Kernel browser target and persist the finished video.",
+    instructions:
+      "After stopping a replay, include `::kernel-replay{target-id=\"<target-id>\" replay-id=\"<replay-id>\"}` on " +
+      "its own line in your reply so the user sees the recording embedded inline once it finishes processing.",
     parameters: z.object({ targetId: z.string(), replayId: z.string() }),
     async execute({ targetId, replayId }) {
       await commands.stopReplay(ctx, targetId, replayId);

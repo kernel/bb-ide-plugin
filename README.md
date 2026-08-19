@@ -37,10 +37,11 @@ this plugin, an agent can:
 - Video replays: record a target's session (`replay-start`), stop it to
   persist the video (`replay-stop`), and list past recordings with their
   view URLs (`replay-list`) — same target ownership rules as everything else.
-- An inline live view: an agent's reply can include
-  `::kernel-live{target-id="<target-id>"}` and bb renders it as an embedded
-  iframe of that target's live view, right in the message — `kernel_browser_open`
-  nudges the model to do this automatically.
+- Two inline embeds, both rendered right in the message stream instead of a
+  side panel: `::kernel-live{target-id="<target-id>"}` for a target's live
+  view, and `::kernel-replay{target-id="<target-id>" replay-id="<replay-id>"}`
+  for a finished (or still-processing) recording. `kernel_browser_open` and
+  `kernel_browser_replay_stop` nudge the model to include these automatically.
 - Target ownership tracking: every action is scoped to a target this plugin
   opened. Acting on an unknown or already-closed target fails with a clear
   error instead of silently doing nothing.
@@ -94,8 +95,9 @@ on first use) compiles `dist/server.js` and `dist/app.js` and is what a
   logic, shared by the CLI, the agent tools, and the RPC layer.
 - `src/cli.ts`, `src/server.ts` — `bb.cli.register` / `bb.agents.registerTool`
   glue.
-- `src/rpc.ts`, `app.tsx` — the `kernel-live` message directive's data plane
-  (look up a target by id, close it) and UI (the embedded iframe).
+- `src/rpc.ts`, `app.tsx` — the `kernel-live` and `kernel-replay` message
+  directives' data plane (look up a target or replay by id, close a target)
+  and UI (the embedded iframes).
 
 ## License
 

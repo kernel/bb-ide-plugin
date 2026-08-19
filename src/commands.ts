@@ -164,6 +164,12 @@ export async function listReplays(ctx: CommandContext, targetId: string): Promis
   return ctx.client.listReplays(targetId);
 }
 
+export async function getReplay(ctx: CommandContext, targetId: string, replayId: string): Promise<ReplayInfo | null> {
+  requireTarget(ctx, targetId);
+  const replays = await ctx.client.listReplays(targetId);
+  return replays.find((r) => r.replayId === replayId) ?? null;
+}
+
 export interface CloseFailure {
   targetId: string;
   error: string;

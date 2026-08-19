@@ -62,7 +62,11 @@ they aren't in this session's tool set.
 `replay-stop` persists it (recordings aren't watchable until stopped);
 `replay-list` returns each recording's `replay-id` and view URL once
 processed. Use this for a durable record of what happened, distinct from the
-live view — the live view only shows what's happening right now.
+live view — the live view only shows what's happening right now. After
+`replay-stop`, put `::kernel-replay{target-id="<target-id>" replay-id="<replay-id>"}`
+on its own line in your reply — bb renders it as an embedded player right in
+the chat (showing "processing" until the video is ready) instead of just a
+link.
 
 ## Usage guidance
 
