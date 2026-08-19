@@ -33,6 +33,10 @@ this plugin, an agent can:
 - Native agent tools (`kernel_browser_open`, `_snapshot`, `_click`, `_type`,
   `_eval`, `_close`) that wrap the same commands, so a session with native
   tool support doesn't need to shell out to the CLI.
+- An inline live view: an agent's reply can include
+  `::kernel-live{target-id="<target-id>"}` and bb renders it as an embedded
+  iframe of that target's live view, right in the message — `kernel_browser_open`
+  nudges the model to do this automatically.
 - Target ownership tracking: every action is scoped to a target this plugin
   opened. Acting on an unknown or already-closed target fails with a clear
   error instead of silently doing nothing.
@@ -69,8 +73,8 @@ Kernel client is mocked. Against a real bb checkout, `bb plugin dev` (run
 from this directory) watches sources and reloads the plugin on every save.
 
 `bb plugin build` (no server required — it downloads its own build toolchain
-on first use) compiles `dist/server.js` and is what a `git:` install runs
-automatically.
+on first use) compiles `dist/server.js` and `dist/app.js` and is what a
+`git:` install runs automatically.
 
 ## Architecture
 
@@ -86,6 +90,8 @@ automatically.
   logic, shared by the CLI, the agent tools, and the RPC layer.
 - `src/cli.ts`, `src/server.ts` — `bb.cli.register` / `bb.agents.registerTool`
   glue.
+- `src/rpc.ts`, `app.tsx` — the `kernel-live` message directive's data plane
+  (look up a target by id, close it) and UI (the embedded iframe).
 
 ## License
 

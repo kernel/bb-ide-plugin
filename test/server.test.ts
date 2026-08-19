@@ -156,6 +156,28 @@ describe("kernel-browser plugin", () => {
     );
   });
 
+  it("looks up a target by id for the inline live view directive, and returns null once closed", async () => {
+    const { harness } = await setup();
+    await harness.behavior.runCli(["open", "https://example.com"], { threadId: "thread-a" });
+
+    const found = (await harness.behavior.callRpc("getTarget", { targetId: "sess_1" })) as {
+      target: { targetId: string; liveViewUrl: string | null } | null;
+    };
+    expect(found.target?.targetId).toBe("sess_1");
+    expect(found.target?.liveViewUrl).toBe("https://live.example/sess_1");
+
+    const missing = (await harness.behavior.callRpc("getTarget", { targetId: "sess_unknown" })) as {
+      target: unknown;
+    };
+    expect(missing.target).toBeNull();
+
+    await harness.behavior.callRpc("close", { targetId: "sess_1" });
+    const afterClose = (await harness.behavior.callRpc("getTarget", { targetId: "sess_1" })) as {
+      target: unknown;
+    };
+    expect(afterClose.target).toBeNull();
+  });
+
   it("closes every target for a thread when it is archived", async () => {
     const { harness } = await setup();
     // callAgentTool defaults its context threadId to "thread-test".

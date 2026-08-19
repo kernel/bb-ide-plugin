@@ -84,6 +84,11 @@ export async function listTargets(ctx: CommandContext): Promise<TargetSummary[]>
   return ctx.store.listAll().map(toSummary);
 }
 
+export async function getTarget(ctx: CommandContext, targetId: string): Promise<TargetSummary | null> {
+  const target = ctx.store.get(targetId);
+  return target ? toSummary(target) : null;
+}
+
 export async function snapshotTarget(ctx: CommandContext, targetId: string) {
   requireTarget(ctx, targetId);
   const snapshot = await ctx.client.snapshot(targetId);
