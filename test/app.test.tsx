@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { act } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { TargetDto } from "../src/rpc.js";
 
@@ -135,5 +136,45 @@ describe("kernel-browser app", () => {
 
     resolveSecond({ target: fakeTarget({ targetId: "sess_2" }) });
     await slot.findByText("sess_2");
+  });
+
+  it("ignores a stale lookup that resolves after the panel has already switched targets", async () => {
+    const app = await loadPluginApp(() => import("../app.js"));
+    const [panel] = app.threadPanelActions;
+    const Panel = panel.component;
+
+    let resolveFirst: (value: { target: TargetDto | null }) => void = () => {};
+    const firstLookup = new Promise<{ target: TargetDto | null }>((resolve) => {
+      resolveFirst = resolve;
+    });
+    let resolveSecond: (value: { target: TargetDto | null }) => void = () => {};
+    const secondLookup = new Promise<{ target: TargetDto | null }>((resolve) => {
+      resolveSecond = resolve;
+    });
+    const forTarget = vi.fn().mockReturnValueOnce(firstLookup).mockReturnValueOnce(secondLookup);
+
+    const slot = renderSlot(
+      panel,
+      { threadId: "thread-a", params: { targetId: "sess_1" } },
+      { rpc: { forTarget, latestForThread: async () => ({ target: null }), close: async () => ({ ok: true }) } },
+    );
+
+    // Switch targets before the first (sess_1) lookup has resolved.
+    slot.lifecycle.rerender(<Panel threadId="thread-a" params={{ targetId: "sess_2" }} />);
+
+    await act(async () => {
+      resolveSecond({ target: fakeTarget({ targetId: "sess_2" }) });
+      await secondLookup;
+    });
+    await slot.findByText("sess_2");
+
+    // The stale sess_1 lookup resolves late — it must not clobber sess_2.
+    await act(async () => {
+      resolveFirst({ target: fakeTarget({ targetId: "sess_1" }) });
+      await firstLookup;
+    });
+
+    expect(slot.queryByText("sess_1")).toBeNull();
+    expect(slot.getByText("sess_2")).toBeTruthy();
   });
 });

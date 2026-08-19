@@ -1,6 +1,6 @@
 import { definePluginApp, useBbNavigate, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { PluginMessageDirectiveProps, PluginThreadPanelProps } from "@get-bb/plugin-sdk/app";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { rpcContract, TargetDto } from "./src/rpc.js";
 
 function targetIdFromParams(params: PluginThreadPanelProps["params"]): string | null {
@@ -15,10 +15,18 @@ function LiveViewPanel({ threadId, params }: PluginThreadPanelProps) {
   const targetId = targetIdFromParams(params);
   const [target, setTarget] = useState<TargetDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const requestIdRef = useRef(0);
 
   const refresh = useCallback(() => {
+    const requestId = ++requestIdRef.current;
     const call = targetId ? rpc.call("forTarget", { targetId }) : rpc.call("latestForThread", { threadId });
-    call.then((res) => setTarget(res.target)).finally(() => setLoading(false));
+    call
+      .then((res) => {
+        if (requestIdRef.current === requestId) setTarget(res.target);
+      })
+      .finally(() => {
+        if (requestIdRef.current === requestId) setLoading(false);
+      });
   }, [rpc, threadId, targetId]);
 
   useEffect(() => {
