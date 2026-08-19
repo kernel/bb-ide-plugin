@@ -1,15 +1,29 @@
-# bb-plugin-kernel-browser
+# bb-ide-plugin
 
-Drive [Kernel](https://kernel.sh) cloud browsers from [bb](https://github.com/get-bb/bb) —
-CLI commands, native agent tools, and a thread panel live view.
+Give [bb](https://github.com/get-bb/bb) a real browser. This plugin lets any
+bb agent open a [Kernel](https://kernel.sh) cloud browser, watch it live, and
+drive it — right from a thread, on your hosted bb workspace, no local
+setup beyond an API key.
 
-bb (the agentic IDE) has no browser primitive of its own yet; its own
-[`plans/bb-browser.md`](https://github.com/get-bb/bb/blob/main/plans/bb-browser.md)
-proposes driving a local Electron `WebContentsView` tab over CDP so a user can
-watch an agent browse. This plugin gets to the same outcome — an agent-driven
-browser the user can watch live — without any of that: every Kernel session
-ships its own live view URL, runs independently of bb's desktop app, survives
-disconnects, and comes with stealth/anti-bot handling built in.
+## Why you'd want this
+
+Kernel gives any bb agent a real, cloud-hosted browser to work with. With
+this plugin, an agent can:
+
+- **Log into real accounts and get real work done** — check a dashboard,
+  file a form, pull a report — on sites that need a real, cookie-carrying
+  browser, not just an HTTP fetch.
+- **Get past bot detection** that blocks plain scrapers, with stealth
+  handling built in (`--stealth`).
+- **Let you watch it happen.** Every session ships a live view URL you can
+  open in a tab and watch the agent click around in real time — no more
+  wondering what it's actually doing out there.
+- **Keep running after you walk away.** The browser lives in the cloud, not
+  in your editor. Close your laptop, resume the thread tomorrow, and the
+  session (or its result) is still there.
+- **Do all of this from a hosted bb workspace** — the browser is already
+  cloud-hosted, so there's nothing to run locally and nothing tying the
+  session to any one machine.
 
 ## What it adds
 
@@ -20,11 +34,11 @@ disconnects, and comes with stealth/anti-bot handling built in.
   `_eval`, `_close`) that wrap the same commands, so a session with native
   tool support doesn't need to shell out to the CLI.
 - A thread panel ("Kernel Browser") that iframes a target's live view URL,
-  with a close button.
+  with a close button — watch right alongside the conversation.
 - A `::kernel-live-view{targetId="..."}` chat message directive — the
   `kernel_browser_open` agent tool returns it instead of a raw live view URL,
   so the agent's reply renders a "Watch live" control that opens the target
-  in the Kernel Browser panel rather than a link that leaves the app.
+  in the Kernel Browser panel instead of a link that leaves the app.
 - Target ownership tracking: every action is scoped to a target this plugin
   opened. Acting on an unknown or already-closed target fails with a clear
   error instead of silently doing nothing.
@@ -34,26 +48,18 @@ disconnects, and comes with stealth/anti-bot handling built in.
 
 ## Install
 
-Requires a bb checkout with plugin support (`bb --version` >= 0.9) and a
-[Kernel API key](https://dashboard.onkernel.com/api-keys).
+On your hosted bb workspace, you just need a
+[Kernel API key](https://dashboard.onkernel.com/api-keys):
 
 ```bash
-bb plugin install git:https://github.com/kernel/bb-plugin-kernel-browser.git@main
-bb plugin config kernel-browser set apiKey <your-kernel-api-key>
-bb plugin reload kernel-browser
-```
-
-Or from a local checkout during development:
-
-```bash
-git clone https://github.com/kernel/bb-plugin-kernel-browser.git
-bb plugin install path:./bb-plugin-kernel-browser
+bb plugin install git:https://github.com/kernel/bb-ide-plugin.git@main
 bb plugin config kernel-browser set apiKey <your-kernel-api-key>
 bb plugin reload kernel-browser
 ```
 
 Check status with `bb plugin list` — it reports `needs-configuration` until
-`apiKey` is set.
+`apiKey` is set. Once configured, ask any agent in the workspace to open a
+browser and it's ready to go.
 
 ## Development
 
@@ -70,7 +76,7 @@ from this directory) watches sources and reloads the plugin on every save.
 
 `bb plugin build` (no server required — it downloads its own build toolchain
 on first use) compiles `dist/server.js` and `dist/app.js` and is what a
-`git:`/`npm:` install runs automatically.
+`git:` install runs automatically.
 
 ## Architecture
 
