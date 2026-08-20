@@ -33,16 +33,19 @@ later tasks can often skip straight to an automatic re-auth.
      line in your reply so the person watching sees the hosted login page
      embedded inline and can enter their own credentials there — never ask
      for a password or code in chat, and never type one in yourself.
-   - End your turn on that reply. Don't immediately chain
-     `auth-wait`/`auth-get` calls after posting the card — a reply that's
-     mostly narration around more tool calls can end up visually collapsed
-     as "work" in some hosts, burying the very card the person needs to act
-     on. Check back in a separate step instead.
-   - When you do check back (e.g. via `auth-wait`), and the flow is still
-     `IN_PROGRESS`, **re-embed the same directive** in that reply too rather
-     than telling the person to scroll up to "the page above" — it's the
-     same live, auto-refreshing card, so re-embedding costs nothing and
-     guarantees it's visible in the turn they're currently looking at.
+   - Make that reply the last thing you say this turn, then stop. Don't
+     chain `auth-wait` right after — it can block for minutes and may
+     render as a collapsible background command, and a turn that pairs a
+     long-running call with an earlier embed risks the whole turn
+     collapsing into a "worked for Ns" summary once the call finishes,
+     burying the very card the person needs to act on. Check back with
+     `auth-wait` in a separate, later turn instead.
+   - When you do check back and the flow is still `IN_PROGRESS`,
+     **re-embed the same directive** as the last thing in that reply too,
+     rather than telling the person to scroll up to "the page above" —
+     it's the same live, auto-refreshing card, so re-embedding costs
+     nothing and guarantees it's visible in the turn they're actually
+     looking at.
    - If the flow seems stuck, wait it out (or let it expire) instead of
      calling `auth-login` again in a hurry. `auth-login` is safe to re-call —
      on a connection that's already `IN_PROGRESS` it reuses that flow instead
