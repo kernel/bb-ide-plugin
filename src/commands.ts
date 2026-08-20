@@ -1,10 +1,27 @@
-import type { KernelBrowserClient, KernelTarget, ReplayInfo, StartReplayOptions } from "./types.js";
+import type {
+  AuthConnectionSummary,
+  KernelAuthClient,
+  KernelBrowserClient,
+  KernelTarget,
+  ListAuthConnectionsFilter,
+  LoginFlowResult,
+  ReplayInfo,
+  StartReplayOptions,
+} from "./types.js";
 import type { TargetStore } from "./store.js";
 import {
+  DEFAULT_AUTH_WAIT_SECONDS,
+  isTerminalAuthFlowStatus,
+  MAX_ALLOWED_DOMAINS,
+  MAX_AUTH_WAIT_SECONDS,
+  MAX_DOMAIN_LENGTH,
   MAX_EVAL_SCRIPT_LENGTH,
+  MAX_LOGIN_URL_LENGTH,
+  MAX_PROFILE_NAME_LENGTH,
   MAX_SELECTOR_LENGTH,
   MAX_TYPE_TEXT_LENGTH,
   MAX_URL_LENGTH,
+  AUTH_POLL_INTERVAL_MS,
   type TargetOrigin,
 } from "./types.js";
 
@@ -12,6 +29,7 @@ export type TargetEvent = "opened" | "closed";
 
 export interface CommandContext {
   client: KernelBrowserClient;
+  authClient: KernelAuthClient;
   store: TargetStore;
   notify(threadId: string | null, event: TargetEvent, targetId: string): void;
 }
@@ -187,4 +205,72 @@ export async function closeTargetsForThread(ctx: CommandContext, threadId: strin
     }
   }
   return failures;
+}
+
+export interface CreateAuthConnectionArgs {
+  domain: string;
+  profileName: string;
+  loginUrl?: string;
+  allowedDomains?: string[];
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function createAuthConnection(
+  ctx: CommandContext,
+  args: CreateAuthConnectionArgs,
+): Promise<AuthConnectionSummary> {
+  if (args.domain.length > MAX_DOMAIN_LENGTH) {
+    throw new Error(`domain exceeds ${MAX_DOMAIN_LENGTH} characters`);
+  }
+  if (args.profileName.length > MAX_PROFILE_NAME_LENGTH) {
+    throw new Error(`profile name exceeds ${MAX_PROFILE_NAME_LENGTH} characters`);
+  }
+  if (args.loginUrl && args.loginUrl.length > MAX_LOGIN_URL_LENGTH) {
+    throw new Error(`login url exceeds ${MAX_LOGIN_URL_LENGTH} characters`);
+  }
+  if (args.allowedDomains && args.allowedDomains.length > MAX_ALLOWED_DOMAINS) {
+    throw new Error(`allowed domains exceeds ${MAX_ALLOWED_DOMAINS} entries`);
+  }
+  return ctx.authClient.create(args);
+}
+
+export async function listAuthConnections(
+  ctx: CommandContext,
+  filter: ListAuthConnectionsFilter,
+): Promise<AuthConnectionSummary[]> {
+  return ctx.authClient.list(filter);
+}
+
+export async function getAuthConnection(ctx: CommandContext, connectionId: string): Promise<AuthConnectionSummary> {
+  return ctx.authClient.get(connectionId);
+}
+
+export async function loginAuthConnection(ctx: CommandContext, connectionId: string): Promise<LoginFlowResult> {
+  return ctx.authClient.login(connectionId);
+}
+
+export async function deleteAuthConnection(ctx: CommandContext, connectionId: string): Promise<void> {
+  await ctx.authClient.delete(connectionId);
+}
+
+export async function waitForAuthConnection(
+  ctx: CommandContext,
+  connectionId: string,
+  timeoutSeconds: number = DEFAULT_AUTH_WAIT_SECONDS,
+): Promise<AuthConnectionSummary> {
+  const boundedTimeoutSeconds = Math.min(Math.max(timeoutSeconds, 0), MAX_AUTH_WAIT_SECONDS);
+  const deadline = Date.now() + boundedTimeoutSeconds * 1000;
+  for (;;) {
+    const connection = await ctx.authClient.get(connectionId);
+    if (isTerminalAuthFlowStatus(connection.flowStatus)) {
+      return connection;
+    }
+    if (Date.now() >= deadline) {
+      return connection;
+    }
+    await sleep(AUTH_POLL_INTERVAL_MS);
+  }
 }

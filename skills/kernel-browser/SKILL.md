@@ -31,6 +31,11 @@ This is a separate cloud browser, not bb's own in-app browser tabs. Don't use
 it to QA bb's own web app — use `dev-browser` or the ordinary in-app browser
 for that.
 
+Hitting a login wall? See the `kernel-managed-auth` skill instead of driving
+the login form yourself with `click`/`type` — it gets a profile authenticated
+through Kernel's hosted login page, then hands you back a profile name to
+pass to `open --profile`.
+
 ## Commands
 
 ```

@@ -1,9 +1,11 @@
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import { useCallback, useEffect, useState } from "react";
-import type { rpcContract, ReplayDto, TargetDto } from "./src/rpc.js";
+import type { AuthConnectionDto, rpcContract, ReplayDto, TargetDto } from "./src/rpc.js";
 
 const REPLAY_POLL_INTERVAL_MS = 5000;
+const AUTH_LOGIN_POLL_INTERVAL_MS = 3000;
+const TERMINAL_AUTH_FLOW_STATUSES = new Set(["SUCCESS", "FAILED", "EXPIRED", "CANCELED"]);
 
 function KernelLiveDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const targetId = attributes["target-id"];
@@ -149,6 +151,98 @@ function KernelReplayDirective({ attributes }: PluginMessageDirectiveProps) {
   );
 }
 
+function KernelAuthLoginDirective({ attributes }: PluginMessageDirectiveProps) {
+  const connectionId = attributes["connection-id"];
+  const rpc = useRpc<typeof rpcContract>();
+  const [connection, setConnection] = useState<AuthConnectionDto | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(() => {
+    if (!connectionId) {
+      setLoading(false);
+      return;
+    }
+    rpc
+      .call("getAuthConnection", { connectionId })
+      .then((res) => setConnection(res.connection))
+      .finally(() => setLoading(false));
+  }, [rpc, connectionId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const isTerminal = connection?.flowStatus ? TERMINAL_AUTH_FLOW_STATUSES.has(connection.flowStatus) : false;
+
+  useEffect(() => {
+    if (isTerminal) return;
+    const interval = setInterval(refresh, AUTH_LOGIN_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [refresh, isTerminal]);
+
+  if (!connectionId) {
+    return <div style={{ padding: 8, fontSize: 13 }}>Missing connection-id.</div>;
+  }
+
+  if (loading) return <div style={{ padding: 8, fontSize: 13 }}>Loading…</div>;
+
+  if (!connection) {
+    return <div style={{ padding: 8, fontSize: 13 }}>Auth connection {connectionId} not found.</div>;
+  }
+
+  if (connection.status === "AUTHENTICATED" && !connection.hostedUrl) {
+    return (
+      <div style={{ padding: 8, fontSize: 13 }}>
+        Authenticated — {connection.domain} (profile {connection.profileName}).
+      </div>
+    );
+  }
+
+  if (connection.flowStatus && connection.flowStatus !== "IN_PROGRESS") {
+    const label =
+      connection.flowStatus === "SUCCESS"
+        ? `Authenticated — ${connection.domain} (profile ${connection.profileName}).`
+        : `Login ${connection.flowStatus.toLowerCase()} for ${connection.domain}.`;
+    return <div style={{ padding: 8, fontSize: 13 }}>{label}</div>;
+  }
+
+  if (!connection.hostedUrl) {
+    return (
+      <div style={{ padding: 8, fontSize: 13 }}>
+        Waiting on an automatic re-auth for {connection.domain} (profile {connection.profileName})…
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ border: "1px solid rgba(128, 128, 128, 0.25)", borderRadius: 8, overflow: "hidden" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "6px 10px",
+          borderBottom: "1px solid rgba(128, 128, 128, 0.25)",
+          fontSize: 12,
+        }}
+      >
+        <span>
+          Log into {connection.domain} (profile {connection.profileName})
+        </span>
+        <a href={connection.hostedUrl} target="_blank" rel="noreferrer">
+          Open in new tab
+        </a>
+      </div>
+      <iframe
+        title="Kernel hosted login"
+        src={connection.hostedUrl}
+        style={{ width: "100%", height: 480, border: "none" }}
+        allow="clipboard-read; clipboard-write"
+      />
+    </div>
+  );
+}
+
 export default definePluginApp((app) => {
   app.slots.messageDirective({
     id: "kernel-live",
@@ -157,5 +251,9 @@ export default definePluginApp((app) => {
   app.slots.messageDirective({
     id: "kernel-replay",
     component: KernelReplayDirective,
+  });
+  app.slots.messageDirective({
+    id: "kernel-auth-login",
+    component: KernelAuthLoginDirective,
   });
 });

@@ -69,3 +69,65 @@ export const MAX_EVAL_SCRIPT_LENGTH = 8192;
 export const MAX_TYPE_TEXT_LENGTH = 4096;
 export const MAX_URL_LENGTH = 4096;
 export const MAX_SELECTOR_LENGTH = 512;
+
+export type AuthConnectionStatus = "AUTHENTICATED" | "NEEDS_AUTH";
+export type AuthFlowType = "LOGIN" | "REAUTH";
+export type AuthFlowStatus = "IN_PROGRESS" | "SUCCESS" | "FAILED" | "EXPIRED" | "CANCELED";
+
+export interface CreateAuthConnectionOptions {
+  domain: string;
+  profileName: string;
+  loginUrl?: string;
+  allowedDomains?: string[];
+}
+
+export interface ListAuthConnectionsFilter {
+  domain?: string;
+  profileName?: string;
+}
+
+export interface AuthConnectionSummary {
+  connectionId: string;
+  domain: string;
+  profileName: string;
+  status: AuthConnectionStatus;
+  flowType: AuthFlowType | null;
+  flowStatus: AuthFlowStatus | null;
+  hostedUrl: string | null;
+  liveViewUrl: string | null;
+}
+
+export interface LoginFlowResult {
+  connectionId: string;
+  flowType: AuthFlowType;
+  flowExpiresAt: string;
+  hostedUrl: string | null;
+  liveViewUrl: string | null;
+}
+
+export interface KernelAuthClient {
+  create(opts: CreateAuthConnectionOptions): Promise<AuthConnectionSummary>;
+  get(connectionId: string): Promise<AuthConnectionSummary>;
+  list(filter: ListAuthConnectionsFilter): Promise<AuthConnectionSummary[]>;
+  login(connectionId: string): Promise<LoginFlowResult>;
+  delete(connectionId: string): Promise<void>;
+}
+
+export const MAX_DOMAIN_LENGTH = 255;
+export const MAX_PROFILE_NAME_LENGTH = 128;
+export const MAX_LOGIN_URL_LENGTH = 2048;
+export const MAX_ALLOWED_DOMAINS = 20;
+export const DEFAULT_AUTH_WAIT_SECONDS = 120;
+export const MAX_AUTH_WAIT_SECONDS = 300;
+export const AUTH_POLL_INTERVAL_MS = 2000;
+
+const TERMINAL_AUTH_FLOW_STATUSES: ReadonlySet<AuthFlowStatus> = new Set([
+  "SUCCESS",
+  "FAILED",
+  "EXPIRED",
+  "CANCELED",
+]);
+
+export function isTerminalAuthFlowStatus(status: AuthFlowStatus | null): boolean {
+  return status !== null && TERMINAL_AUTH_FLOW_STATUSES.has(status);
+}

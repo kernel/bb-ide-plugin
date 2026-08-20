@@ -2,7 +2,7 @@ import type { PluginSettingValue } from "@get-bb/plugin-sdk";
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { fakeClient, createKernelClientMock } = vi.hoisted(() => {
+const { fakeClient, createKernelClientMock, fakeAuthClient, createKernelAuthClientMock } = vi.hoisted(() => {
   const fakeClient = {
     open: vi.fn(async () => ({
       sessionId: "sess_1",
@@ -31,11 +31,41 @@ const { fakeClient, createKernelClientMock } = vi.hoisted(() => {
     ]),
   };
   const createKernelClientMock = vi.fn(() => fakeClient);
-  return { fakeClient, createKernelClientMock };
+
+  const fakeAuthConnection = {
+    connectionId: "conn_1",
+    domain: "example.com",
+    profileName: "my-profile",
+    status: "NEEDS_AUTH" as const,
+    flowType: null as null,
+    flowStatus: null as null,
+    hostedUrl: null as null,
+    liveViewUrl: null as null,
+  };
+  const fakeAuthClient = {
+    create: vi.fn(async () => fakeAuthConnection),
+    get: vi.fn(async () => ({ ...fakeAuthConnection, status: "AUTHENTICATED" as const, flowStatus: "SUCCESS" as const, flowType: "LOGIN" as const })),
+    list: vi.fn(async () => [fakeAuthConnection]),
+    login: vi.fn(async () => ({
+      connectionId: "conn_1",
+      flowType: "LOGIN" as const,
+      flowExpiresAt: "2026-01-01T00:10:00Z",
+      hostedUrl: "https://managed-auth.onkernel.com/flow/conn_1",
+      liveViewUrl: "https://live.example/conn_1",
+    })),
+    delete: vi.fn(async () => {}),
+  };
+  const createKernelAuthClientMock = vi.fn(() => fakeAuthClient);
+
+  return { fakeClient, createKernelClientMock, fakeAuthClient, createKernelAuthClientMock };
 });
 
 vi.mock("../src/kernel-client.js", () => ({
   createKernelClient: createKernelClientMock,
+}));
+
+vi.mock("../src/kernel-auth-client.js", () => ({
+  createKernelAuthClient: createKernelAuthClientMock,
 }));
 
 const { default: plugin } = await import("../src/server.js");
@@ -302,5 +332,95 @@ describe("kernel-browser plugin", () => {
 
     const snapshot = await harness.behavior.runCli(["snapshot", "sess_1"]);
     expect(snapshot.exitCode).toBe(0);
+  });
+
+  it("creates, lists, gets, logs into, waits for, and deletes an auth connection via the CLI", async () => {
+    const { harness } = await setup();
+
+    const created = await harness.behavior.runCli([
+      "auth-create",
+      "example.com",
+      "--profile",
+      "my-profile",
+      "--allowed-domains",
+      "sso.example.com, other.example.com",
+    ]);
+    expect(created.exitCode).toBe(0);
+    expect(fakeAuthClient.create).toHaveBeenCalledWith({
+      domain: "example.com",
+      profileName: "my-profile",
+      loginUrl: undefined,
+      allowedDomains: ["sso.example.com", "other.example.com"],
+    });
+
+    const listed = await harness.behavior.runCli(["auth-list", "--domain", "example.com", "--json"]);
+    expect(listed.exitCode).toBe(0);
+    expect(listed.stdout).toContain("conn_1");
+    expect(fakeAuthClient.list).toHaveBeenCalledWith({ domain: "example.com", profileName: undefined });
+
+    const got = await harness.behavior.runCli(["auth-get", "conn_1", "--json"]);
+    expect(got.exitCode).toBe(0);
+    expect(got.stdout).toContain("AUTHENTICATED");
+
+    const login = await harness.behavior.runCli(["auth-login", "conn_1"]);
+    expect(login.exitCode).toBe(0);
+    expect(login.stdout).toContain("https://managed-auth.onkernel.com/flow/conn_1");
+    expect(fakeAuthClient.login).toHaveBeenCalledWith("conn_1");
+
+    const waited = await harness.behavior.runCli(["auth-wait", "conn_1", "--timeout", "60", "--json"]);
+    expect(waited.exitCode).toBe(0);
+    expect(waited.stdout).toContain("SUCCESS");
+
+    const deleted = await harness.behavior.runCli(["auth-delete", "conn_1"]);
+    expect(deleted.exitCode).toBe(0);
+    expect(fakeAuthClient.delete).toHaveBeenCalledWith("conn_1");
+  });
+
+  it("requires --profile on auth-create", async () => {
+    const { harness } = await setup();
+    const result = await harness.behavior.runCli(["auth-create", "example.com"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/--profile is required/);
+    expect(fakeAuthClient.create).not.toHaveBeenCalled();
+  });
+
+  it("registers auth agent tools that wrap the same commands", async () => {
+    const { harness } = await setup();
+
+    const created = (await harness.behavior.callAgentTool("kernel_auth_create", {
+      domain: "example.com",
+      profileName: "my-profile",
+    })) as string;
+    expect(created).toContain("conn_1");
+
+    const loginResult = (await harness.behavior.callAgentTool("kernel_auth_login", {
+      connectionId: "conn_1",
+    })) as string;
+    expect(loginResult).toContain("https://managed-auth.onkernel.com/flow/conn_1");
+
+    const waitResult = (await harness.behavior.callAgentTool("kernel_auth_wait", {
+      connectionId: "conn_1",
+    })) as string;
+    expect(waitResult).toContain("AUTHENTICATED");
+
+    const deleteResult = await harness.behavior.callAgentTool("kernel_auth_delete", { connectionId: "conn_1" });
+    expect(deleteResult).toBe("deleted");
+    expect(fakeAuthClient.delete).toHaveBeenCalledWith("conn_1");
+  });
+
+  it("looks up an auth connection by id for the inline hosted-login directive, returning null for unknown ids", async () => {
+    const { harness } = await setup();
+
+    const found = (await harness.behavior.callRpc("getAuthConnection", { connectionId: "conn_1" })) as {
+      connection: { connectionId: string; status: string } | null;
+    };
+    expect(found.connection?.connectionId).toBe("conn_1");
+    expect(found.connection?.status).toBe("AUTHENTICATED");
+
+    fakeAuthClient.get.mockRejectedValueOnce(new Error("not found"));
+    const missing = (await harness.behavior.callRpc("getAuthConnection", { connectionId: "conn_unknown" })) as {
+      connection: unknown;
+    };
+    expect(missing.connection).toBeNull();
   });
 });
