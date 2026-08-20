@@ -16,11 +16,12 @@ desktop app window open.
 - Any task that needs to load a real page: read rendered content, check
   whether something shipped, fill in a form, log into a site.
 - Sites protected by bot detection. Pass `--stealth` on `open`.
-- Anything the user might want to watch. Share the `Watch it live:` URL
+- Anything a person is likely watching. Share the `Watch it live:` URL
   `open` prints — don't just say "I opened a browser." Better still, put
   `::kernel-live{target-id="<target-id>"}` on its own line in your reply —
   bb renders it as an embedded live view right in the chat instead of just a
-  link.
+  link. Skip this for unattended or bulk opens (e.g. looping over many
+  targets), and embed at most one per reply.
 - Long-running or resumable work: the Kernel session outlives this thread's
   runtime, so a browser opened here is still there if the thread is resumed
   later. Always `close` it when the task is done so it doesn't run forever
@@ -62,11 +63,13 @@ they aren't in this session's tool set.
 `replay-stop` persists it (recordings aren't watchable until stopped);
 `replay-list` returns each recording's `replay-id` and view URL once
 processed. Use this for a durable record of what happened, distinct from the
-live view — the live view only shows what's happening right now. After
-`replay-stop`, put `::kernel-replay{target-id="<target-id>" replay-id="<replay-id>"}`
-on its own line in your reply — bb renders it as an embedded player right in
-the chat (showing "processing" until the video is ready) instead of just a
-link.
+live view — the live view only shows what's happening right now. If the
+recording is something the user asked to see or would want to review (not an
+internal audit trail for a background/bulk task), put
+`::kernel-replay{target-id="<target-id>" replay-id="<replay-id>"}` on its own
+line in your reply — bb renders it as an embedded player right in the chat
+(showing "processing" until the video is ready) instead of just a link. Skip
+this for unattended or bulk stops, and embed at most one per reply.
 
 ## Usage guidance
 

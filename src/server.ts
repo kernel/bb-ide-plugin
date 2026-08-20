@@ -107,8 +107,10 @@ export default async function plugin(bb: BbPluginApi) {
       "Open a real, cloud-hosted Chrome browser via Kernel and get back a target id plus a live view URL " +
       "the user can watch. Use this for any task that needs a browser.",
     instructions:
-      "After opening a headful Kernel browser, include `::kernel-live{target-id=\"<target-id>\"}` on its own " +
-      "line in your reply so the user sees the live view embedded inline in the chat, instead of just a link.",
+      "If a person is likely watching this task (not a background/batch job looping over many targets), " +
+      "include `::kernel-live{target-id=\"<target-id>\"}` on its own line in your reply so they see the live " +
+      "view embedded inline instead of just a link. Skip it for unattended or bulk opens, and include at most " +
+      "one per reply — pick the target most relevant to what's being discussed.",
     experimental_statusLabels: { pending: "Opening a Kernel browser", completed: "Opened a Kernel browser" },
     parameters: z.object({
       url: z.string().max(MAX_URL_LENGTH).optional().describe("URL to navigate to on open"),
@@ -212,8 +214,11 @@ export default async function plugin(bb: BbPluginApi) {
     name: "kernel_browser_replay_stop",
     description: "Stop an in-progress replay recording on a Kernel browser target and persist the finished video.",
     instructions:
-      "After stopping a replay, include `::kernel-replay{target-id=\"<target-id>\" replay-id=\"<replay-id>\"}` on " +
-      "its own line in your reply so the user sees the recording embedded inline once it finishes processing.",
+      "If this recording is something the user asked to see or would want to review (not an internal audit " +
+      "trail for a background/bulk task), include " +
+      "`::kernel-replay{target-id=\"<target-id>\" replay-id=\"<replay-id>\"}` on its own line in your reply so " +
+      "they see it embedded inline once it finishes processing. Skip it for unattended or bulk stops, and " +
+      "include at most one per reply.",
     parameters: z.object({ targetId: z.string(), replayId: z.string() }),
     async execute({ targetId, replayId }) {
       await commands.stopReplay(ctx, targetId, replayId);
