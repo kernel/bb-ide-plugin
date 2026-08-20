@@ -1,32 +1,102 @@
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import type { AuthConnectionDto, rpcContract, ReplayDto, TargetDto } from "./src/rpc.js";
 
 const REPLAY_POLL_INTERVAL_MS = 5000;
 const AUTH_LOGIN_POLL_INTERVAL_MS = 3000;
 const TERMINAL_AUTH_FLOW_STATUSES = new Set(["SUCCESS", "FAILED", "EXPIRED", "CANCELED"]);
 
-function KernelLiveDirective({ attributes, message }: PluginMessageDirectiveProps) {
-  const targetId = attributes["target-id"];
-  const rpc = useRpc<typeof rpcContract>();
-  const [target, setTarget] = useState<TargetDto | null>(null);
+function Note({ children }: { children: ReactNode }) {
+  return <div style={{ padding: 8, fontSize: 13 }}>{children}</div>;
+}
+
+function EmbedCard({
+  title,
+  actions,
+  iframeTitle,
+  iframeSrc,
+}: {
+  title: ReactNode;
+  actions?: ReactNode;
+  iframeTitle: string;
+  iframeSrc: string;
+}) {
+  return (
+    <div style={{ border: "1px solid rgba(128, 128, 128, 0.25)", borderRadius: 8, overflow: "hidden" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "6px 10px",
+          borderBottom: "1px solid rgba(128, 128, 128, 0.25)",
+          fontSize: 12,
+        }}
+      >
+        <span>{title}</span>
+        {actions}
+      </div>
+      <iframe
+        title={iframeTitle}
+        src={iframeSrc}
+        style={{ width: "100%", height: 480, border: "none" }}
+        allow="clipboard-read; clipboard-write"
+      />
+    </div>
+  );
+}
+
+interface UsePolledLookupOptions<T> {
+  pollIntervalMs?: number;
+  isDone?: (value: T | null) => boolean;
+}
+
+/**
+ * Fetches once on mount via a memoized `fetch`, and — while `isDone` (default: always) says
+ * no — re-fetches every `pollIntervalMs`. `fetch` returning undefined skips the fetch (e.g. a
+ * required id is missing) without disabling the poll, matching each directive's prior behavior.
+ */
+function usePolledLookup<T>(fetch: () => Promise<T> | undefined, options: UsePolledLookupOptions<T> = {}) {
+  const [value, setValue] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(() => {
-    if (!targetId) {
+    const result = fetch();
+    if (!result) {
       setLoading(false);
       return;
     }
-    rpc
-      .call("getTarget", { targetId })
-      .then((res) => setTarget(res.target))
-      .finally(() => setLoading(false));
-  }, [rpc, targetId]);
+    result.then(setValue).finally(() => setLoading(false));
+  }, [fetch]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const done = options.isDone ? options.isDone(value) : true;
+  const pollIntervalMs = options.pollIntervalMs;
+
+  useEffect(() => {
+    if (!pollIntervalMs || done) return;
+    const interval = setInterval(refresh, pollIntervalMs);
+    return () => clearInterval(interval);
+  }, [refresh, pollIntervalMs, done]);
+
+  return { value, setValue, loading, refresh };
+}
+
+function KernelLiveDirective({ attributes, message }: PluginMessageDirectiveProps) {
+  const targetId = attributes["target-id"];
+  const rpc = useRpc<typeof rpcContract>();
+
+  const fetchTarget = useCallback(() => {
+    if (!targetId) return undefined;
+    return rpc.call("getTarget", { targetId }).then((res) => res.target);
+  }, [rpc, targetId]);
+
+  const { value: target, setValue: setTarget, loading, refresh } = usePolledLookup<TargetDto | null>(fetchTarget);
 
   useRealtime(`kernel-browser:${message.threadId}`, refresh);
 
@@ -36,33 +106,15 @@ function KernelLiveDirective({ attributes, message }: PluginMessageDirectiveProp
     setTarget(null);
   }
 
-  if (!targetId) {
-    return <div style={{ padding: 8, fontSize: 13 }}>Missing target-id.</div>;
-  }
-
-  if (loading) return <div style={{ padding: 8, fontSize: 13 }}>Loading…</div>;
-
-  if (!target) {
-    return <div style={{ padding: 8, fontSize: 13 }}>Target {targetId} is closed or unknown.</div>;
-  }
-
-  if (!target.liveViewUrl) {
-    return <div style={{ padding: 8, fontSize: 13 }}>Target {target.targetId} is headless — no live view.</div>;
-  }
+  if (!targetId) return <Note>Missing target-id.</Note>;
+  if (loading) return <Note>Loading…</Note>;
+  if (!target) return <Note>Target {targetId} is closed or unknown.</Note>;
+  if (!target.liveViewUrl) return <Note>Target {target.targetId} is headless — no live view.</Note>;
 
   return (
-    <div style={{ border: "1px solid rgba(128, 128, 128, 0.25)", borderRadius: 8, overflow: "hidden" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "6px 10px",
-          borderBottom: "1px solid rgba(128, 128, 128, 0.25)",
-          fontSize: 12,
-        }}
-      >
-        <span>{target.targetId}</span>
+    <EmbedCard
+      title={target.targetId}
+      actions={
         <div>
           <a href={target.liveViewUrl} target="_blank" rel="noreferrer">
             Open in new tab
@@ -71,14 +123,10 @@ function KernelLiveDirective({ attributes, message }: PluginMessageDirectiveProp
             Close
           </button>
         </div>
-      </div>
-      <iframe
-        title="Kernel live view"
-        src={target.liveViewUrl}
-        style={{ width: "100%", height: 480, border: "none" }}
-        allow="clipboard-read; clipboard-write"
-      />
-    </div>
+      }
+      iframeTitle="Kernel live view"
+      iframeSrc={target.liveViewUrl}
+    />
   );
 }
 
@@ -86,115 +134,59 @@ function KernelReplayDirective({ attributes }: PluginMessageDirectiveProps) {
   const targetId = attributes["target-id"];
   const replayId = attributes["replay-id"];
   const rpc = useRpc<typeof rpcContract>();
-  const [replay, setReplay] = useState<ReplayDto | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(() => {
-    if (!targetId || !replayId) {
-      setLoading(false);
-      return;
-    }
-    rpc
-      .call("getReplay", { targetId, replayId })
-      .then((res) => setReplay(res.replay))
-      .finally(() => setLoading(false));
+  const fetchReplay = useCallback(() => {
+    if (!targetId || !replayId) return undefined;
+    return rpc.call("getReplay", { targetId, replayId }).then((res) => res.replay);
   }, [rpc, targetId, replayId]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const { value: replay, loading } = usePolledLookup<ReplayDto | null>(fetchReplay, {
+    pollIntervalMs: REPLAY_POLL_INTERVAL_MS,
+    isDone: (r) => Boolean(r?.replayViewUrl),
+  });
 
-  useEffect(() => {
-    if (replay?.replayViewUrl) return;
-    const interval = setInterval(refresh, REPLAY_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [refresh, replay?.replayViewUrl]);
-
-  if (!targetId || !replayId) {
-    return <div style={{ padding: 8, fontSize: 13 }}>Missing target-id or replay-id.</div>;
-  }
-
-  if (loading) return <div style={{ padding: 8, fontSize: 13 }}>Loading…</div>;
-
-  if (!replay) {
-    return <div style={{ padding: 8, fontSize: 13 }}>Replay {replayId} not found.</div>;
-  }
-
-  if (!replay.replayViewUrl) {
-    return <div style={{ padding: 8, fontSize: 13 }}>Replay {replay.replayId} is still processing…</div>;
-  }
+  if (!targetId || !replayId) return <Note>Missing target-id or replay-id.</Note>;
+  if (loading) return <Note>Loading…</Note>;
+  if (!replay) return <Note>Replay {replayId} not found.</Note>;
+  if (!replay.replayViewUrl) return <Note>Replay {replay.replayId} is still processing…</Note>;
 
   return (
-    <div style={{ border: "1px solid rgba(128, 128, 128, 0.25)", borderRadius: 8, overflow: "hidden" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "6px 10px",
-          borderBottom: "1px solid rgba(128, 128, 128, 0.25)",
-          fontSize: 12,
-        }}
-      >
-        <span>{replay.replayId}</span>
+    <EmbedCard
+      title={replay.replayId}
+      actions={
         <a href={replay.replayViewUrl} target="_blank" rel="noreferrer">
           Open in new tab
         </a>
-      </div>
-      <iframe
-        title="Kernel replay"
-        src={replay.replayViewUrl}
-        style={{ width: "100%", height: 480, border: "none" }}
-        allow="clipboard-read; clipboard-write"
-      />
-    </div>
+      }
+      iframeTitle="Kernel replay"
+      iframeSrc={replay.replayViewUrl}
+    />
   );
 }
 
 function KernelAuthLoginDirective({ attributes }: PluginMessageDirectiveProps) {
   const connectionId = attributes["connection-id"];
   const rpc = useRpc<typeof rpcContract>();
-  const [connection, setConnection] = useState<AuthConnectionDto | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(() => {
-    if (!connectionId) {
-      setLoading(false);
-      return;
-    }
-    rpc
-      .call("getAuthConnection", { connectionId })
-      .then((res) => setConnection(res.connection))
-      .finally(() => setLoading(false));
+  const fetchConnection = useCallback(() => {
+    if (!connectionId) return undefined;
+    return rpc.call("getAuthConnection", { connectionId }).then((res) => res.connection);
   }, [rpc, connectionId]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const { value: connection, loading } = usePolledLookup<AuthConnectionDto | null>(fetchConnection, {
+    pollIntervalMs: AUTH_LOGIN_POLL_INTERVAL_MS,
+    isDone: (c) => Boolean(c?.flowStatus && TERMINAL_AUTH_FLOW_STATUSES.has(c.flowStatus)),
+  });
 
-  const isTerminal = connection?.flowStatus ? TERMINAL_AUTH_FLOW_STATUSES.has(connection.flowStatus) : false;
-
-  useEffect(() => {
-    if (isTerminal) return;
-    const interval = setInterval(refresh, AUTH_LOGIN_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [refresh, isTerminal]);
-
-  if (!connectionId) {
-    return <div style={{ padding: 8, fontSize: 13 }}>Missing connection-id.</div>;
-  }
-
-  if (loading) return <div style={{ padding: 8, fontSize: 13 }}>Loading…</div>;
-
-  if (!connection) {
-    return <div style={{ padding: 8, fontSize: 13 }}>Auth connection {connectionId} not found.</div>;
-  }
+  if (!connectionId) return <Note>Missing connection-id.</Note>;
+  if (loading) return <Note>Loading…</Note>;
+  if (!connection) return <Note>Auth connection {connectionId} not found.</Note>;
 
   if (connection.status === "AUTHENTICATED" && !connection.hostedUrl) {
     return (
-      <div style={{ padding: 8, fontSize: 13 }}>
+      <Note>
         Authenticated — {connection.domain} (profile {connection.profileName}).
-      </div>
+      </Note>
     );
   }
 
@@ -203,43 +195,32 @@ function KernelAuthLoginDirective({ attributes }: PluginMessageDirectiveProps) {
       connection.flowStatus === "SUCCESS"
         ? `Authenticated — ${connection.domain} (profile ${connection.profileName}).`
         : `Login ${connection.flowStatus.toLowerCase()} for ${connection.domain}.`;
-    return <div style={{ padding: 8, fontSize: 13 }}>{label}</div>;
+    return <Note>{label}</Note>;
   }
 
   if (!connection.hostedUrl) {
     return (
-      <div style={{ padding: 8, fontSize: 13 }}>
+      <Note>
         Waiting on an automatic re-auth for {connection.domain} (profile {connection.profileName})…
-      </div>
+      </Note>
     );
   }
 
   return (
-    <div style={{ border: "1px solid rgba(128, 128, 128, 0.25)", borderRadius: 8, overflow: "hidden" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "6px 10px",
-          borderBottom: "1px solid rgba(128, 128, 128, 0.25)",
-          fontSize: 12,
-        }}
-      >
-        <span>
+    <EmbedCard
+      title={
+        <>
           Log into {connection.domain} (profile {connection.profileName})
-        </span>
+        </>
+      }
+      actions={
         <a href={connection.hostedUrl} target="_blank" rel="noreferrer">
           Open in new tab
         </a>
-      </div>
-      <iframe
-        title="Kernel hosted login"
-        src={connection.hostedUrl}
-        style={{ width: "100%", height: 480, border: "none" }}
-        allow="clipboard-read; clipboard-write"
-      />
-    </div>
+      }
+      iframeTitle="Kernel hosted login"
+      iframeSrc={connection.hostedUrl}
+    />
   );
 }
 
