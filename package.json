@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-kernel-browser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Drive Kernel cloud browsers from bb — CLI commands, agent tools, and an inline live view.",
