@@ -16,7 +16,7 @@ interface CliResult {
 
 type Flags = Record<string, string | boolean>;
 
-const BOOLEAN_FLAGS = new Set(["stealth", "headless", "json"]);
+const BOOLEAN_FLAGS = new Set(["stealth", "headless", "json", "audio"]);
 
 function parseArgs(args: string[]): { positionals: string[]; flags: Flags } {
   const positionals: string[] = [];
@@ -152,8 +152,40 @@ export async function runCli(
         return ok(json, { ok: true }, "closed");
       }
 
+      case "replay-start": {
+        const targetId = requirePositional(positionals, "target-id");
+        const framerate = stringFlag(flags, "framerate");
+        const maxDuration = stringFlag(flags, "max-duration");
+        const replay = await commands.startReplay(ctx, targetId, {
+          framerate: framerate ? Number(framerate) : undefined,
+          maxDurationSeconds: maxDuration ? Number(maxDuration) : undefined,
+          recordAudio: flags.audio === true,
+        });
+        return ok(json, replay, `Started replay ${replay.replayId}`);
+      }
+
+      case "replay-stop": {
+        const targetId = requirePositional(positionals, "target-id");
+        const replayId = stringFlag(flags, "replay-id");
+        if (!replayId) throw new Error("--replay-id is required");
+        await commands.stopReplay(ctx, targetId, replayId);
+        return ok(json, { ok: true }, "stopped");
+      }
+
+      case "replay-list": {
+        const targetId = requirePositional(positionals, "target-id");
+        const replays = await commands.listReplays(ctx, targetId);
+        const text = replays.length
+          ? replays.map((r) => `${r.replayId}  ${r.replayViewUrl ?? "(processing)"}`).join("\n")
+          : "no replays";
+        return ok(json, replays, text);
+      }
+
       default:
-        return fail(`unknown command "${command ?? ""}". Try: open, list, snapshot, click, type, eval, close`);
+        return fail(
+          `unknown command "${command ?? ""}". Try: open, list, snapshot, click, type, eval, close, ` +
+            "replay-start, replay-stop, replay-list",
+        );
     }
   } catch (error) {
     return fail(error instanceof Error ? error.message : String(error));

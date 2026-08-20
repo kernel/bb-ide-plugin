@@ -14,6 +14,21 @@ const { fakeClient, createKernelClientMock } = vi.hoisted(() => {
     type: vi.fn(async () => {}),
     evaluate: vi.fn(async () => "eval-result"),
     close: vi.fn(async () => {}),
+    startReplay: vi.fn(async () => ({
+      replayId: "replay_1",
+      replayViewUrl: null,
+      startedAt: "2026-01-01T00:00:00Z",
+      finishedAt: null,
+    })),
+    stopReplay: vi.fn(async () => {}),
+    listReplays: vi.fn(async () => [
+      {
+        replayId: "replay_1",
+        replayViewUrl: "https://replay.example/replay_1",
+        startedAt: "2026-01-01T00:00:00Z",
+        finishedAt: "2026-01-01T00:05:00Z",
+      },
+    ]),
   };
   const createKernelClientMock = vi.fn(() => fakeClient);
   return { fakeClient, createKernelClientMock };
@@ -100,6 +115,63 @@ describe("kernel-browser plugin", () => {
     expect(fakeClient.evaluate).not.toHaveBeenCalled();
   });
 
+  it("starts, stops, and lists replays via the CLI, scoped to a plugin-owned target", async () => {
+    const { harness } = await setup();
+    await harness.behavior.runCli(["open", "https://example.com"]);
+
+    const start = await harness.behavior.runCli([
+      "replay-start",
+      "sess_1",
+      "--framerate",
+      "15",
+      "--max-duration",
+      "300",
+      "--audio",
+      "--json",
+    ]);
+    expect(start.exitCode).toBe(0);
+    expect(start.stdout).toContain("replay_1");
+    expect(fakeClient.startReplay).toHaveBeenCalledWith("sess_1", {
+      framerate: 15,
+      maxDurationSeconds: 300,
+      recordAudio: true,
+    });
+
+    const list = await harness.behavior.runCli(["replay-list", "sess_1", "--json"]);
+    expect(list.exitCode).toBe(0);
+    expect(list.stdout).toContain("https://replay.example/replay_1");
+
+    const stop = await harness.behavior.runCli(["replay-stop", "sess_1", "--replay-id", "replay_1"]);
+    expect(stop.exitCode).toBe(0);
+    expect(fakeClient.stopReplay).toHaveBeenCalledWith("sess_1", "replay_1");
+
+    const onUnknownTarget = await harness.behavior.runCli(["replay-start", "sess_unknown"]);
+    expect(onUnknownTarget.exitCode).toBe(1);
+    expect(onUnknownTarget.stderr).toMatch(/unknown target/);
+  });
+
+  it("registers replay agent tools that wrap the same commands", async () => {
+    const { harness } = await setup();
+    await harness.behavior.callAgentTool("kernel_browser_open", { url: "https://example.com" });
+
+    const startResult = (await harness.behavior.callAgentTool("kernel_browser_replay_start", {
+      targetId: "sess_1",
+    })) as string;
+    expect(startResult).toContain("replay_1");
+
+    const listResult = (await harness.behavior.callAgentTool("kernel_browser_replay_list", {
+      targetId: "sess_1",
+    })) as string;
+    expect(listResult).toContain("https://replay.example/replay_1");
+
+    const stopResult = await harness.behavior.callAgentTool("kernel_browser_replay_stop", {
+      targetId: "sess_1",
+      replayId: "replay_1",
+    });
+    expect(stopResult).toBe("stopped");
+    expect(fakeClient.stopReplay).toHaveBeenCalledWith("sess_1", "replay_1");
+  });
+
   it("registers an agent tool that opens a target and allows a follow-up click", async () => {
     const { harness } = await setup();
     const openText = (await harness.behavior.callAgentTool("kernel_browser_open", {
@@ -176,6 +248,31 @@ describe("kernel-browser plugin", () => {
       target: unknown;
     };
     expect(afterClose.target).toBeNull();
+  });
+
+  it("looks up a replay by id for the inline replay directive, before and after it finishes processing", async () => {
+    const { harness } = await setup();
+    await harness.behavior.runCli(["open", "https://example.com"]);
+    await harness.behavior.runCli(["replay-start", "sess_1"]);
+
+    const found = (await harness.behavior.callRpc("getReplay", {
+      targetId: "sess_1",
+      replayId: "replay_1",
+    })) as { replay: { replayId: string; replayViewUrl: string | null } | null };
+    expect(found.replay?.replayId).toBe("replay_1");
+    expect(found.replay?.replayViewUrl).toBe("https://replay.example/replay_1");
+
+    const missing = (await harness.behavior.callRpc("getReplay", {
+      targetId: "sess_1",
+      replayId: "replay_unknown",
+    })) as { replay: unknown };
+    expect(missing.replay).toBeNull();
+
+    const onUnknownTarget = harness.behavior.callRpc("getReplay", {
+      targetId: "sess_unknown",
+      replayId: "replay_1",
+    });
+    await expect(onUnknownTarget).rejects.toThrow(/unknown target/);
   });
 
   it("closes every target for a thread when it is archived", async () => {

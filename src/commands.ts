@@ -1,4 +1,4 @@
-import type { KernelBrowserClient, KernelTarget } from "./types.js";
+import type { KernelBrowserClient, KernelTarget, ReplayInfo, StartReplayOptions } from "./types.js";
 import type { TargetStore } from "./store.js";
 import {
   MAX_EVAL_SCRIPT_LENGTH,
@@ -140,6 +140,34 @@ export async function closeTarget(ctx: CommandContext, targetId: string): Promis
   await ctx.client.close(targetId);
   ctx.store.remove(targetId);
   ctx.notify(target.threadId, "closed", targetId);
+}
+
+export async function startReplay(
+  ctx: CommandContext,
+  targetId: string,
+  opts: StartReplayOptions = {},
+): Promise<ReplayInfo> {
+  requireTarget(ctx, targetId);
+  const replay = await ctx.client.startReplay(targetId, opts);
+  ctx.store.touch(targetId);
+  return replay;
+}
+
+export async function stopReplay(ctx: CommandContext, targetId: string, replayId: string): Promise<void> {
+  requireTarget(ctx, targetId);
+  await ctx.client.stopReplay(targetId, replayId);
+  ctx.store.touch(targetId);
+}
+
+export async function listReplays(ctx: CommandContext, targetId: string): Promise<ReplayInfo[]> {
+  requireTarget(ctx, targetId);
+  return ctx.client.listReplays(targetId);
+}
+
+export async function getReplay(ctx: CommandContext, targetId: string, replayId: string): Promise<ReplayInfo | null> {
+  requireTarget(ctx, targetId);
+  const replays = await ctx.client.listReplays(targetId);
+  return replays.find((r) => r.replayId === replayId) ?? null;
 }
 
 export interface CloseFailure {

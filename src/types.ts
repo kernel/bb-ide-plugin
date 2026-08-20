@@ -40,6 +40,19 @@ export interface TypeTarget {
   text: string;
 }
 
+export interface StartReplayOptions {
+  framerate?: number;
+  maxDurationSeconds?: number;
+  recordAudio?: boolean;
+}
+
+export interface ReplayInfo {
+  replayId: string;
+  replayViewUrl: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
 export interface KernelBrowserClient {
   open(opts: OpenOptions): Promise<OpenResult>;
   snapshot(sessionId: string): Promise<SnapshotResult>;
@@ -47,6 +60,9 @@ export interface KernelBrowserClient {
   type(sessionId: string, target: TypeTarget): Promise<void>;
   evaluate(sessionId: string, script: string): Promise<unknown>;
   close(sessionId: string): Promise<void>;
+  startReplay(sessionId: string, opts: StartReplayOptions): Promise<ReplayInfo>;
+  stopReplay(sessionId: string, replayId: string): Promise<void>;
+  listReplays(sessionId: string): Promise<ReplayInfo[]>;
 }
 
 export const MAX_EVAL_SCRIPT_LENGTH = 8192;

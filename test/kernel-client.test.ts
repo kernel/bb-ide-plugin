@@ -26,6 +26,23 @@ const fakeSdk = {
       clickMouse: vi.fn(async () => {}),
       typeText: vi.fn(async () => {}),
     },
+    replays: {
+      start: vi.fn(async () => ({
+        replay_id: "replay_1",
+        replay_view_url: undefined,
+        started_at: "2026-01-01T00:00:00Z",
+        finished_at: null,
+      })),
+      stop: vi.fn(async () => {}),
+      list: vi.fn(async () => [
+        {
+          replay_id: "replay_1",
+          replay_view_url: "https://replay.example/replay_1",
+          started_at: "2026-01-01T00:00:00Z",
+          finished_at: "2026-01-01T00:05:00Z",
+        },
+      ]),
+    },
   },
 };
 
@@ -90,5 +107,36 @@ describe("createKernelClient", () => {
     const client = createKernelClient("test-key");
     await client.close("sess_1");
     expect(fakeSdk.browsers.deleteByID).toHaveBeenCalledWith("sess_1");
+  });
+
+  it("maps replay start/stop/list onto the SDK's snake_case shape", async () => {
+    const client = createKernelClient("test-key");
+
+    const started = await client.startReplay("sess_1", { framerate: 15, maxDurationSeconds: 300, recordAudio: true });
+    expect(fakeSdk.browsers.replays.start).toHaveBeenCalledWith("sess_1", {
+      framerate: 15,
+      max_duration_in_seconds: 300,
+      record_audio: true,
+    });
+    expect(started).toEqual({
+      replayId: "replay_1",
+      replayViewUrl: null,
+      startedAt: "2026-01-01T00:00:00Z",
+      finishedAt: null,
+    });
+
+    await client.stopReplay("sess_1", "replay_1");
+    expect(fakeSdk.browsers.replays.stop).toHaveBeenCalledWith("replay_1", { id: "sess_1" });
+
+    const replays = await client.listReplays("sess_1");
+    expect(fakeSdk.browsers.replays.list).toHaveBeenCalledWith("sess_1");
+    expect(replays).toEqual([
+      {
+        replayId: "replay_1",
+        replayViewUrl: "https://replay.example/replay_1",
+        startedAt: "2026-01-01T00:00:00Z",
+        finishedAt: "2026-01-01T00:05:00Z",
+      },
+    ]);
   });
 });

@@ -1,5 +1,30 @@
 import Kernel from "@onkernel/sdk";
-import type { ClickTarget, KernelBrowserClient, OpenOptions, OpenResult, SnapshotResult, TypeTarget } from "./types.js";
+import type {
+  ClickTarget,
+  KernelBrowserClient,
+  OpenOptions,
+  OpenResult,
+  ReplayInfo,
+  SnapshotResult,
+  StartReplayOptions,
+  TypeTarget,
+} from "./types.js";
+
+interface KernelReplay {
+  replay_id: string;
+  replay_view_url?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
+function toReplayInfo(replay: KernelReplay): ReplayInfo {
+  return {
+    replayId: replay.replay_id,
+    replayViewUrl: replay.replay_view_url ?? null,
+    startedAt: replay.started_at ?? null,
+    finishedAt: replay.finished_at ?? null,
+  };
+}
 
 export function createKernelClient(apiKey: string): KernelBrowserClient {
   const kernel = new Kernel({ apiKey });
@@ -65,6 +90,24 @@ export function createKernelClient(apiKey: string): KernelBrowserClient {
 
     async close(sessionId: string): Promise<void> {
       await kernel.browsers.deleteByID(sessionId);
+    },
+
+    async startReplay(sessionId: string, opts: StartReplayOptions): Promise<ReplayInfo> {
+      const replay = await kernel.browsers.replays.start(sessionId, {
+        framerate: opts.framerate,
+        max_duration_in_seconds: opts.maxDurationSeconds,
+        record_audio: opts.recordAudio,
+      });
+      return toReplayInfo(replay);
+    },
+
+    async stopReplay(sessionId: string, replayId: string): Promise<void> {
+      await kernel.browsers.replays.stop(replayId, { id: sessionId });
+    },
+
+    async listReplays(sessionId: string): Promise<ReplayInfo[]> {
+      const replays = await kernel.browsers.replays.list(sessionId);
+      return replays.map(toReplayInfo);
     },
   };
 }

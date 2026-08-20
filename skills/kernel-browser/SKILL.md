@@ -16,11 +16,12 @@ desktop app window open.
 - Any task that needs to load a real page: read rendered content, check
   whether something shipped, fill in a form, log into a site.
 - Sites protected by bot detection. Pass `--stealth` on `open`.
-- Anything the user might want to watch. Share the `Watch it live:` URL
+- Anything a person is likely watching. Share the `Watch it live:` URL
   `open` prints — don't just say "I opened a browser." Better still, put
   `::kernel-live{target-id="<target-id>"}` on its own line in your reply —
   bb renders it as an embedded live view right in the chat instead of just a
-  link.
+  link. Skip this for unattended or bulk opens (e.g. looping over many
+  targets), and embed at most one per reply.
 - Long-running or resumable work: the Kernel session outlives this thread's
   runtime, so a browser opened here is still there if the thread is resumed
   later. Always `close` it when the task is done so it doesn't run forever
@@ -40,6 +41,9 @@ bb kernel-browser click <target-id> --selector <css> | --x <n> --y <n>
 bb kernel-browser type <target-id> --text <text> [--selector <css>]
 bb kernel-browser eval <target-id> --script <code> | --script-file <path> [--json]
 bb kernel-browser close <target-id>
+bb kernel-browser replay-start <target-id> [--framerate <fps>] [--max-duration <seconds>] [--audio] [--json]
+bb kernel-browser replay-stop <target-id> --replay-id <id> [--json]
+bb kernel-browser replay-list <target-id> [--json]
 ```
 
 `open` returns a `target-id` (a Kernel browser session id) plus a live view
@@ -49,10 +53,23 @@ Kernel session, so `click`/`type`/`eval`/`snapshot`/`close` fail with a clear
 error against anything this plugin didn't open.
 
 Native tools `kernel_browser_open`, `kernel_browser_snapshot`,
-`kernel_browser_click`, `kernel_browser_type`, `kernel_browser_eval`, and
-`kernel_browser_close` wrap the same commands — prefer the tools when
-available; fall back to the CLI form when they aren't in this session's tool
-set.
+`kernel_browser_click`, `kernel_browser_type`, `kernel_browser_eval`,
+`kernel_browser_close`, `kernel_browser_replay_start`,
+`kernel_browser_replay_stop`, and `kernel_browser_replay_list` wrap the same
+commands — prefer the tools when available; fall back to the CLI form when
+they aren't in this session's tool set.
+
+`replay-start` begins recording video of a target and returns a `replay-id`;
+`replay-stop` persists it (recordings aren't watchable until stopped);
+`replay-list` returns each recording's `replay-id` and view URL once
+processed. Use this for a durable record of what happened, distinct from the
+live view — the live view only shows what's happening right now. If the
+recording is something the user asked to see or would want to review (not an
+internal audit trail for a background/bulk task), put
+`::kernel-replay{target-id="<target-id>" replay-id="<replay-id>"}` on its own
+line in your reply — bb renders it as an embedded player right in the chat
+(showing "processing" until the video is ready) instead of just a link. Skip
+this for unattended or bulk stops, and embed at most one per reply.
 
 ## Usage guidance
 

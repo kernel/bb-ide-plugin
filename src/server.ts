@@ -80,6 +80,21 @@ export default async function plugin(bb: BbPluginApi) {
         summary: "Close a target and delete its Kernel session",
         usage: "bb kernel-browser close <target-id>",
       },
+      {
+        name: "replay-start",
+        summary: "Start recording a video replay of a target",
+        usage: "bb kernel-browser replay-start <target-id> [--framerate <fps>] [--max-duration <seconds>] [--audio] [--json]",
+      },
+      {
+        name: "replay-stop",
+        summary: "Stop a replay recording and persist the video",
+        usage: "bb kernel-browser replay-stop <target-id> --replay-id <id> [--json]",
+      },
+      {
+        name: "replay-list",
+        summary: "List replay recordings for a target",
+        usage: "bb kernel-browser replay-list <target-id> [--json]",
+      },
     ],
     async run(argv, runCtx) {
       return runCli(bb, ctx, argv, runCtx);
@@ -92,8 +107,10 @@ export default async function plugin(bb: BbPluginApi) {
       "Open a real, cloud-hosted Chrome browser via Kernel and get back a target id plus a live view URL " +
       "the user can watch. Use this for any task that needs a browser.",
     instructions:
-      "After opening a headful Kernel browser, include `::kernel-live{target-id=\"<target-id>\"}` on its own " +
-      "line in your reply so the user sees the live view embedded inline in the chat, instead of just a link.",
+      "If a person is likely watching this task (not a background/batch job looping over many targets), " +
+      "include `::kernel-live{target-id=\"<target-id>\"}` on its own line in your reply so they see the live " +
+      "view embedded inline instead of just a link. Skip it for unattended or bulk opens, and include at most " +
+      "one per reply — pick the target most relevant to what's being discussed.",
     experimental_statusLabels: { pending: "Opening a Kernel browser", completed: "Opened a Kernel browser" },
     parameters: z.object({
       url: z.string().max(MAX_URL_LENGTH).optional().describe("URL to navigate to on open"),
@@ -173,6 +190,52 @@ export default async function plugin(bb: BbPluginApi) {
     async execute({ targetId }) {
       await commands.closeTarget(ctx, targetId);
       return "closed";
+    },
+  });
+
+  bb.agents.registerTool({
+    name: "kernel_browser_replay_start",
+    description:
+      "Start recording a video replay of an open Kernel browser target and return a replay id. Call " +
+      "kernel_browser_replay_stop to persist the video once the recorded activity is done.",
+    parameters: z.object({
+      targetId: z.string(),
+      framerate: z.number().optional().describe("Recording framerate in fps; values above 20 require GPU"),
+      maxDurationSeconds: z.number().optional().describe("Maximum recording duration in seconds"),
+      recordAudio: z.boolean().optional().describe("Record audio in addition to video (default: video-only)"),
+    }),
+    async execute({ targetId, framerate, maxDurationSeconds, recordAudio }) {
+      const replay = await commands.startReplay(ctx, targetId, { framerate, maxDurationSeconds, recordAudio });
+      return `Started replay ${replay.replayId}`;
+    },
+  });
+
+  bb.agents.registerTool({
+    name: "kernel_browser_replay_stop",
+    description: "Stop an in-progress replay recording on a Kernel browser target and persist the finished video.",
+    instructions:
+      "If this recording is something the user asked to see or would want to review (not an internal audit " +
+      "trail for a background/bulk task), include " +
+      "`::kernel-replay{target-id=\"<target-id>\" replay-id=\"<replay-id>\"}` on its own line in your reply so " +
+      "they see it embedded inline once it finishes processing. Skip it for unattended or bulk stops, and " +
+      "include at most one per reply.",
+    parameters: z.object({ targetId: z.string(), replayId: z.string() }),
+    async execute({ targetId, replayId }) {
+      await commands.stopReplay(ctx, targetId, replayId);
+      return "stopped";
+    },
+  });
+
+  bb.agents.registerTool({
+    name: "kernel_browser_replay_list",
+    description:
+      "List video replay recordings for an open Kernel browser target, including view URLs once finished.",
+    parameters: z.object({ targetId: z.string() }),
+    async execute({ targetId }) {
+      const replays = await commands.listReplays(ctx, targetId);
+      return replays.length
+        ? replays.map((r) => `${r.replayId}: ${r.replayViewUrl ?? "processing"}`).join("\n")
+        : "no replays";
     },
   });
 

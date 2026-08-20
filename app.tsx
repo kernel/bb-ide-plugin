@@ -1,7 +1,9 @@
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import { useCallback, useEffect, useState } from "react";
-import type { rpcContract, TargetDto } from "./src/rpc.js";
+import type { rpcContract, ReplayDto, TargetDto } from "./src/rpc.js";
+
+const REPLAY_POLL_INTERVAL_MS = 5000;
 
 function KernelLiveDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const targetId = attributes["target-id"];
@@ -78,9 +80,82 @@ function KernelLiveDirective({ attributes, message }: PluginMessageDirectiveProp
   );
 }
 
+function KernelReplayDirective({ attributes }: PluginMessageDirectiveProps) {
+  const targetId = attributes["target-id"];
+  const replayId = attributes["replay-id"];
+  const rpc = useRpc<typeof rpcContract>();
+  const [replay, setReplay] = useState<ReplayDto | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(() => {
+    if (!targetId || !replayId) {
+      setLoading(false);
+      return;
+    }
+    rpc
+      .call("getReplay", { targetId, replayId })
+      .then((res) => setReplay(res.replay))
+      .finally(() => setLoading(false));
+  }, [rpc, targetId, replayId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (replay?.replayViewUrl) return;
+    const interval = setInterval(refresh, REPLAY_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [refresh, replay?.replayViewUrl]);
+
+  if (!targetId || !replayId) {
+    return <div style={{ padding: 8, fontSize: 13 }}>Missing target-id or replay-id.</div>;
+  }
+
+  if (loading) return <div style={{ padding: 8, fontSize: 13 }}>Loading…</div>;
+
+  if (!replay) {
+    return <div style={{ padding: 8, fontSize: 13 }}>Replay {replayId} not found.</div>;
+  }
+
+  if (!replay.replayViewUrl) {
+    return <div style={{ padding: 8, fontSize: 13 }}>Replay {replay.replayId} is still processing…</div>;
+  }
+
+  return (
+    <div style={{ border: "1px solid rgba(128, 128, 128, 0.25)", borderRadius: 8, overflow: "hidden" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "6px 10px",
+          borderBottom: "1px solid rgba(128, 128, 128, 0.25)",
+          fontSize: 12,
+        }}
+      >
+        <span>{replay.replayId}</span>
+        <a href={replay.replayViewUrl} target="_blank" rel="noreferrer">
+          Open in new tab
+        </a>
+      </div>
+      <iframe
+        title="Kernel replay"
+        src={replay.replayViewUrl}
+        style={{ width: "100%", height: 480, border: "none" }}
+        allow="clipboard-read; clipboard-write"
+      />
+    </div>
+  );
+}
+
 export default definePluginApp((app) => {
   app.slots.messageDirective({
     id: "kernel-live",
     component: KernelLiveDirective,
+  });
+  app.slots.messageDirective({
+    id: "kernel-replay",
+    component: KernelReplayDirective,
   });
 });
