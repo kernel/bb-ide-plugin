@@ -246,8 +246,13 @@ export async function runCli(
 
       case "auth-wait": {
         const connectionId = requirePositional(positionals, "connection-id");
-        const timeout = stringFlag(flags, "timeout");
-        const connection = await commands.waitForAuthConnection(ctx, connectionId, timeout ? Number(timeout) : undefined);
+        const timeoutFlag = stringFlag(flags, "timeout");
+        let timeoutSeconds: number | undefined;
+        if (timeoutFlag !== undefined) {
+          timeoutSeconds = Number(timeoutFlag);
+          if (!Number.isFinite(timeoutSeconds)) throw new Error("--timeout must be a number");
+        }
+        const connection = await commands.waitForAuthConnection(ctx, connectionId, timeoutSeconds);
         return ok(json, connection, formatAuthConnection(connection));
       }
 

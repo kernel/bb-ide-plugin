@@ -106,7 +106,10 @@ on first use) compiles `dist/server.js` and `dist/app.js` and is what a
   and auth-create/list/get/login/wait/delete logic, shared by the CLI, the
   agent tools, and the RPC layer.
 - `src/cli.ts`, `src/server.ts` — `bb.cli.register` / `bb.agents.registerTool`
-  glue.
+  glue for the browser commands and plugin wiring (settings, event handlers).
+- `src/auth-tools.ts` — the auth CLI command metadata and `kernel_auth_*`
+  agent tool registrations, factored out of `server.ts` the same way
+  `rpc.ts` already is.
 - `src/rpc.ts`, `app.tsx` — the `kernel-live`, `kernel-replay`, and
   `kernel-auth-login` message directives' data plane (look up a target,
   replay, or auth connection by id; close a target) and UI (the embedded

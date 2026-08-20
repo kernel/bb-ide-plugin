@@ -384,6 +384,14 @@ describe("kernel-browser plugin", () => {
     expect(fakeAuthClient.create).not.toHaveBeenCalled();
   });
 
+  it("rejects a non-numeric --timeout on auth-wait instead of polling forever", async () => {
+    const { harness } = await setup();
+    const result = await harness.behavior.runCli(["auth-wait", "conn_1", "--timeout", "soon"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/--timeout must be a number/);
+    expect(fakeAuthClient.get).not.toHaveBeenCalled();
+  });
+
   it("registers auth agent tools that wrap the same commands", async () => {
     const { harness } = await setup();
 
