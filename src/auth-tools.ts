@@ -113,10 +113,13 @@ export function registerAuthTools(bb: BbPluginApi, ctx: CommandContext): void {
     instructions:
       "Put `::kernel-auth-login{connection-id=\"<connection-id>\"}` on its own line in your reply so the " +
       "hosted login page renders inline and the person can enter their own credentials there — never ask for " +
-      "a password or code in chat, and never type one in yourself. Then call kernel_auth_wait for the same " +
-      "connection to block until the flow finishes before continuing. If a flow already seems stuck, prefer " +
-      "waiting it out (or letting it expire) over calling this again — it won't start a competing flow, but " +
-      "restarting doesn't help if the person is already looking at the hosted page from the first call.",
+      "a password or code in chat, and never type one in yourself. End your turn on that reply instead of " +
+      "immediately chaining kernel_auth_wait or other tool calls after it — a reply that's just narration " +
+      "around more tool calls can end up visually collapsed as 'work', burying the card the person needs to " +
+      "act on right now. Check back (a new turn, or kernel_auth_wait) separately, and re-embed the same " +
+      "directive in that later reply too — see kernel_auth_wait's instructions. If a flow already seems " +
+      "stuck, prefer waiting it out (or letting it expire) over calling this again — it won't start a " +
+      "competing flow, but restarting doesn't help if the person is already looking at the hosted page.",
     parameters: z.object({ connectionId: z.string() }),
     async execute({ connectionId }) {
       const result = await commands.loginAuthConnection(ctx, connectionId);
@@ -132,6 +135,13 @@ export function registerAuthTools(bb: BbPluginApi, ctx: CommandContext): void {
     description:
       "Block until a Kernel managed auth connection's in-progress login flow reaches a terminal state " +
       "(success, failure, expiry, or cancellation), or until the timeout elapses.",
+    instructions:
+      "If the flow is still IN_PROGRESS when this returns (timeout reached, not terminal), don't just tell " +
+      "the person to go complete the login 'above' — the message with the original card may now be " +
+      "collapsed or scrolled out of view. Re-embed " +
+      "`::kernel-auth-login{connection-id=\"<connection-id>\"}` in this reply too; it's the same live, " +
+      "auto-refreshing card, so showing it again is free and keeps it visible in the turn the person is " +
+      "actually looking at.",
     parameters: z.object({
       connectionId: z.string(),
       timeoutSeconds: z
