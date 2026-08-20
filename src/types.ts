@@ -93,6 +93,7 @@ export interface AuthConnectionSummary {
   status: AuthConnectionStatus;
   flowType: AuthFlowType | null;
   flowStatus: AuthFlowStatus | null;
+  flowExpiresAt: string | null;
   hostedUrl: string | null;
   liveViewUrl: string | null;
 }
@@ -103,6 +104,8 @@ export interface LoginFlowResult {
   flowExpiresAt: string;
   hostedUrl: string | null;
   liveViewUrl: string | null;
+  /** True when an already-IN_PROGRESS flow was reused instead of starting (and superseding) a new one. */
+  reused: boolean;
 }
 
 export interface KernelAuthClient {

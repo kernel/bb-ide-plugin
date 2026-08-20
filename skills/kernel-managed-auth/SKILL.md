@@ -36,6 +36,12 @@ later tasks can often skip straight to an automatic re-auth.
    - Then `bb kernel-browser auth-wait <connection-id> [--timeout <seconds>]`
      in the same turn to block until the flow finishes (default 120s, max
      300s).
+   - If the flow seems stuck, wait it out (or let it expire) instead of
+     calling `auth-login` again in a hurry. `auth-login` is safe to re-call —
+     on a connection that's already `IN_PROGRESS` it reuses that flow instead
+     of starting a competing one — but the hosted page a person already has
+     open is tied to the *first* flow's one-time code, so restarting doesn't
+     get them anything new to look at and just adds confusion.
 4. **Hand off to the browser tools.** Once `auth-wait` reports
    `status: AUTHENTICATED`, open a browser against the same profile:
    `bb kernel-browser open <url> --profile <name>`. It's now a logged-in
@@ -64,7 +70,9 @@ they aren't in this session's tool set.
 `auth-login` returns a `hosted_url` when a human needs to complete the flow
 (first-ever login, or a re-auth that needs a fresh MFA code), and no
 `hosted_url` when Kernel is running an automatic re-auth in the background —
-`auth-wait` handles either case the same way.
+`auth-wait` handles either case the same way. A response with `reused: true`
+means the connection already had a flow in progress and that flow's existing
+`hosted_url` was returned rather than starting a new one.
 
 ## Configuration
 

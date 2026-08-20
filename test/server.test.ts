@@ -1,8 +1,9 @@
 import type { PluginSettingValue } from "@get-bb/plugin-sdk";
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthConnectionSummary } from "../src/types.js";
 
-const { fakeClient, createKernelClientMock, fakeAuthClient, createKernelAuthClientMock } = vi.hoisted(() => {
+const { fakeClient, createKernelClientMock, fakeAuthConnection, fakeAuthClient, createKernelAuthClientMock } = vi.hoisted(() => {
   const fakeClient = {
     open: vi.fn(async () => ({
       sessionId: "sess_1",
@@ -32,19 +33,27 @@ const { fakeClient, createKernelClientMock, fakeAuthClient, createKernelAuthClie
   };
   const createKernelClientMock = vi.fn(() => fakeClient);
 
-  const fakeAuthConnection = {
+  const fakeAuthConnection: AuthConnectionSummary = {
     connectionId: "conn_1",
     domain: "example.com",
     profileName: "my-profile",
-    status: "NEEDS_AUTH" as const,
-    flowType: null as null,
-    flowStatus: null as null,
-    hostedUrl: null as null,
-    liveViewUrl: null as null,
+    status: "NEEDS_AUTH",
+    flowType: null,
+    flowStatus: null,
+    flowExpiresAt: null,
+    hostedUrl: null,
+    liveViewUrl: null,
   };
   const fakeAuthClient = {
     create: vi.fn(async () => fakeAuthConnection),
-    get: vi.fn(async () => ({ ...fakeAuthConnection, status: "AUTHENTICATED" as const, flowStatus: "SUCCESS" as const, flowType: "LOGIN" as const })),
+    get: vi.fn(
+      async (): Promise<AuthConnectionSummary> => ({
+        ...fakeAuthConnection,
+        status: "AUTHENTICATED",
+        flowStatus: "SUCCESS",
+        flowType: "LOGIN",
+      }),
+    ),
     list: vi.fn(async () => [fakeAuthConnection]),
     login: vi.fn(async () => ({
       connectionId: "conn_1",
@@ -52,12 +61,13 @@ const { fakeClient, createKernelClientMock, fakeAuthClient, createKernelAuthClie
       flowExpiresAt: "2026-01-01T00:10:00Z",
       hostedUrl: "https://managed-auth.onkernel.com/flow/conn_1",
       liveViewUrl: "https://live.example/conn_1",
+      reused: false,
     })),
     delete: vi.fn(async () => {}),
   };
   const createKernelAuthClientMock = vi.fn(() => fakeAuthClient);
 
-  return { fakeClient, createKernelClientMock, fakeAuthClient, createKernelAuthClientMock };
+  return { fakeClient, createKernelClientMock, fakeAuthConnection, fakeAuthClient, createKernelAuthClientMock };
 });
 
 vi.mock("../src/kernel-client.js", () => ({
@@ -374,6 +384,24 @@ describe("kernel-browser plugin", () => {
     const deleted = await harness.behavior.runCli(["auth-delete", "conn_1"]);
     expect(deleted.exitCode).toBe(0);
     expect(fakeAuthClient.delete).toHaveBeenCalledWith("conn_1");
+  });
+
+  it("reuses an in-progress login flow instead of starting a competing one", async () => {
+    const { harness } = await setup();
+    fakeAuthClient.get.mockResolvedValueOnce({
+      ...fakeAuthConnection,
+      flowStatus: "IN_PROGRESS",
+      flowType: "LOGIN",
+      flowExpiresAt: "2026-01-01T00:10:00Z",
+      hostedUrl: "https://managed-auth.onkernel.com/flow/conn_1?code=original",
+    });
+
+    const login = await harness.behavior.runCli(["auth-login", "conn_1"]);
+
+    expect(login.exitCode).toBe(0);
+    expect(login.stdout).toContain("original");
+    expect(login.stdout).toContain("Reusing in-progress LOGIN flow");
+    expect(fakeAuthClient.login).not.toHaveBeenCalled();
   });
 
   it("requires --profile on auth-create", async () => {

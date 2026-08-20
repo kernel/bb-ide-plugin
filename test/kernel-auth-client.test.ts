@@ -20,6 +20,7 @@ const fakeSdk = {
         status: "AUTHENTICATED",
         flow_type: "LOGIN",
         flow_status: "SUCCESS",
+        flow_expires_at: "2026-01-01T00:05:00Z",
         hosted_url: null,
         live_view_url: null,
       })),
@@ -82,6 +83,7 @@ describe("createKernelAuthClient", () => {
       status: "NEEDS_AUTH",
       flowType: null,
       flowStatus: null,
+      flowExpiresAt: null,
       hostedUrl: null,
       liveViewUrl: null,
     });
@@ -99,6 +101,7 @@ describe("createKernelAuthClient", () => {
       status: "AUTHENTICATED",
       flowType: "LOGIN",
       flowStatus: "SUCCESS",
+      flowExpiresAt: "2026-01-01T00:05:00Z",
       hostedUrl: null,
       liveViewUrl: null,
     });
@@ -127,6 +130,7 @@ describe("createKernelAuthClient", () => {
       flowExpiresAt: "2026-01-01T00:10:00Z",
       hostedUrl: "https://managed-auth.onkernel.com/flow/conn_1",
       liveViewUrl: "https://live.example/conn_1",
+      reused: false,
     });
   });
 

@@ -106,18 +106,24 @@ export function registerAuthTools(bb: BbPluginApi, ctx: CommandContext): void {
     description:
       "Start a login flow for a Kernel managed auth connection. Returns a hosted login URL for the user to " +
       "complete authentication themselves (Kernel's hosted UI collects the credentials, not this tool), or " +
-      "triggers an automatic re-auth if credentials were already captured from a prior login.",
+      "triggers an automatic re-auth if credentials were already captured from a prior login. Safe to call " +
+      "again on a connection that already has a flow in progress — it reuses that flow's hosted URL instead " +
+      "of starting a new one, since a second login would invalidate the first flow's one-time code out from " +
+      "under anyone already looking at it.",
     instructions:
       "Put `::kernel-auth-login{connection-id=\"<connection-id>\"}` on its own line in your reply so the " +
       "hosted login page renders inline and the person can enter their own credentials there — never ask for " +
       "a password or code in chat, and never type one in yourself. Then call kernel_auth_wait for the same " +
-      "connection to block until the flow finishes before continuing.",
+      "connection to block until the flow finishes before continuing. If a flow already seems stuck, prefer " +
+      "waiting it out (or letting it expire) over calling this again — it won't start a competing flow, but " +
+      "restarting doesn't help if the person is already looking at the hosted page from the first call.",
     parameters: z.object({ connectionId: z.string() }),
     async execute({ connectionId }) {
       const result = await commands.loginAuthConnection(ctx, connectionId);
+      const verb = result.reused ? `Reusing in-progress ${result.flowType} flow` : `Started ${result.flowType} flow`;
       return result.hostedUrl
-        ? `Started ${result.flowType} flow for ${result.connectionId}. Hosted login: ${result.hostedUrl}`
-        : `Started ${result.flowType} flow for ${result.connectionId} (automatic re-auth in progress).`;
+        ? `${verb} for ${result.connectionId}. Hosted login: ${result.hostedUrl}`
+        : `${verb} for ${result.connectionId} (automatic re-auth in progress).`;
     },
   });
 

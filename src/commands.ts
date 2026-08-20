@@ -249,6 +249,19 @@ export async function getAuthConnection(ctx: CommandContext, connectionId: strin
 }
 
 export async function loginAuthConnection(ctx: CommandContext, connectionId: string): Promise<LoginFlowResult> {
+  const current = await ctx.authClient.get(connectionId);
+  if (current.flowStatus === "IN_PROGRESS") {
+    // Starting a new login here would supersede this flow and invalidate its hosted_url's
+    // one-time code out from under anyone already looking at it — reuse it instead.
+    return {
+      connectionId: current.connectionId,
+      flowType: current.flowType ?? "LOGIN",
+      flowExpiresAt: current.flowExpiresAt ?? "",
+      hostedUrl: current.hostedUrl,
+      liveViewUrl: current.liveViewUrl,
+      reused: true,
+    };
+  }
   return ctx.authClient.login(connectionId);
 }
 

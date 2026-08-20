@@ -16,6 +16,7 @@ interface KernelManagedAuth {
   status: "AUTHENTICATED" | "NEEDS_AUTH";
   flow_type?: AuthFlowType | null;
   flow_status?: AuthFlowStatus | null;
+  flow_expires_at?: string | null;
   hosted_url?: string | null;
   live_view_url?: string | null;
 }
@@ -36,6 +37,7 @@ function toSummary(auth: KernelManagedAuth): AuthConnectionSummary {
     status: auth.status,
     flowType: auth.flow_type ?? null,
     flowStatus: auth.flow_status ?? null,
+    flowExpiresAt: auth.flow_expires_at ?? null,
     hostedUrl: auth.hosted_url ?? null,
     liveViewUrl: auth.live_view_url ?? null,
   };
@@ -48,6 +50,7 @@ function toLoginResult(response: KernelLoginResponse): LoginFlowResult {
     flowExpiresAt: response.flow_expires_at,
     hostedUrl: response.hosted_url ?? null,
     liveViewUrl: response.live_view_url ?? null,
+    reused: false,
   };
 }
 

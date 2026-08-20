@@ -238,9 +238,8 @@ export async function runCli(
       case "auth-login": {
         const connectionId = requirePositional(positionals, "connection-id");
         const result = await commands.loginAuthConnection(ctx, connectionId);
-        const text = result.hostedUrl
-          ? `Started ${result.flowType} flow. Complete it at: ${result.hostedUrl}`
-          : `Started ${result.flowType} flow (automatic re-auth in progress).`;
+        const verb = result.reused ? `Reusing in-progress ${result.flowType} flow` : `Started ${result.flowType} flow`;
+        const text = result.hostedUrl ? `${verb}. Complete it at: ${result.hostedUrl}` : `${verb} (automatic re-auth in progress).`;
         return ok(json, result, text);
       }
 
