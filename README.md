@@ -7,6 +7,8 @@ setup beyond an API key.
 
 ## Quick start
 
+![Install from source dialog](assets/install-plugin-dialog.png)
+
 The easiest way to get started, if you just want to use it, is to install the
 plugin from its git URL directly:
 
