@@ -4,10 +4,12 @@ import * as commands from "./commands.js";
 import type { CommandContext } from "./commands.js";
 import { runCli } from "./cli.js";
 import { createKernelClient } from "./kernel-client.js";
+import { createKernelAuthClient } from "./kernel-auth-client.js";
+import { AUTH_CLI_COMMANDS, registerAuthTools } from "./auth-tools.js";
 import { registerRpc } from "./rpc.js";
 import { createTargetStore } from "./store.js";
 import { MAX_EVAL_SCRIPT_LENGTH, MAX_SELECTOR_LENGTH, MAX_TYPE_TEXT_LENGTH, MAX_URL_LENGTH } from "./types.js";
-import type { KernelBrowserClient } from "./types.js";
+import type { KernelAuthClient, KernelBrowserClient } from "./types.js";
 
 export default async function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
@@ -16,6 +18,7 @@ export default async function plugin(bb: BbPluginApi) {
 
   const initial = await settings.get();
   let client: KernelBrowserClient | null = initial.apiKey ? createKernelClient(initial.apiKey) : null;
+  let authClient: KernelAuthClient | null = initial.apiKey ? createKernelAuthClient(initial.apiKey) : null;
 
   if (!client) {
     bb.status.needsConfiguration(
@@ -26,6 +29,7 @@ export default async function plugin(bb: BbPluginApi) {
 
   settings.onChange((next) => {
     client = next.apiKey ? createKernelClient(next.apiKey) : null;
+    authClient = next.apiKey ? createKernelAuthClient(next.apiKey) : null;
   });
 
   const store = createTargetStore(bb);
@@ -36,6 +40,12 @@ export default async function plugin(bb: BbPluginApi) {
         throw new Error("kernel-browser is not configured — set apiKey, then `bb plugin reload kernel-browser`");
       }
       return client;
+    },
+    get authClient() {
+      if (!authClient) {
+        throw new Error("kernel-browser is not configured — set apiKey, then `bb plugin reload kernel-browser`");
+      }
+      return authClient;
     },
     store,
     notify(threadId, event, targetId) {
@@ -95,6 +105,7 @@ export default async function plugin(bb: BbPluginApi) {
         summary: "List replay recordings for a target",
         usage: "bb kernel-browser replay-list <target-id> [--json]",
       },
+      ...AUTH_CLI_COMMANDS,
     ],
     async run(argv, runCtx) {
       return runCli(bb, ctx, argv, runCtx);
@@ -238,6 +249,8 @@ export default async function plugin(bb: BbPluginApi) {
         : "no replays";
     },
   });
+
+  registerAuthTools(bb, ctx);
 
   async function closeTargetsForThreadLogged(threadId: string): Promise<void> {
     const failures = await commands.closeTargetsForThread(ctx, threadId);

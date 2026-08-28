@@ -1,6 +1,7 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import * as commands from "./commands.js";
 import type { CommandContext } from "./commands.js";
+import type { AuthConnectionSummary } from "./types.js";
 
 interface CliRunContext {
   cwd?: string;
@@ -47,6 +48,31 @@ function requirePositional(positionals: string[], name: string): string {
 
 function stringFlag(flags: Flags, name: string): string | undefined {
   return typeof flags[name] === "string" ? (flags[name] as string) : undefined;
+}
+
+function listFlag(flags: Flags, name: string): string[] | undefined {
+  const value = stringFlag(flags, name);
+  if (value === undefined) return undefined;
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function formatAuthConnection(connection: AuthConnectionSummary): string {
+  const lines = [
+    `${connection.connectionId}  ${connection.domain}  profile=${connection.profileName}  status=${connection.status}`,
+  ];
+  if (connection.flowStatus) {
+    lines.push(`flow: ${connection.flowType ?? "?"} ${connection.flowStatus}`);
+  }
+  if (connection.hostedUrl) {
+    lines.push(`hosted login: ${connection.hostedUrl}`);
+  }
+  if (connection.liveViewUrl) {
+    lines.push(`live view: ${connection.liveViewUrl}`);
+  }
+  return lines.join("\n");
 }
 
 function ok(json: boolean, data: unknown, text: string): CliResult {
@@ -181,10 +207,65 @@ export async function runCli(
         return ok(json, replays, text);
       }
 
+      case "auth-create": {
+        const domain = requirePositional(positionals, "domain");
+        const profileName = stringFlag(flags, "profile");
+        if (!profileName) throw new Error("--profile is required");
+        const connection = await commands.createAuthConnection(ctx, {
+          domain,
+          profileName,
+          loginUrl: stringFlag(flags, "login-url"),
+          allowedDomains: listFlag(flags, "allowed-domains"),
+        });
+        return ok(json, connection, formatAuthConnection(connection));
+      }
+
+      case "auth-list": {
+        const connections = await commands.listAuthConnections(ctx, {
+          domain: stringFlag(flags, "domain"),
+          profileName: stringFlag(flags, "profile"),
+        });
+        const text = connections.length ? connections.map(formatAuthConnection).join("\n\n") : "no auth connections";
+        return ok(json, connections, text);
+      }
+
+      case "auth-get": {
+        const connectionId = requirePositional(positionals, "connection-id");
+        const connection = await commands.getAuthConnection(ctx, connectionId);
+        return ok(json, connection, formatAuthConnection(connection));
+      }
+
+      case "auth-login": {
+        const connectionId = requirePositional(positionals, "connection-id");
+        const result = await commands.loginAuthConnection(ctx, connectionId);
+        const verb = result.reused ? `Reusing in-progress ${result.flowType} flow` : `Started ${result.flowType} flow`;
+        const text = result.hostedUrl ? `${verb}. Complete it at: ${result.hostedUrl}` : `${verb} (automatic re-auth in progress).`;
+        return ok(json, result, text);
+      }
+
+      case "auth-wait": {
+        const connectionId = requirePositional(positionals, "connection-id");
+        const timeoutFlag = stringFlag(flags, "timeout");
+        let timeoutSeconds: number | undefined;
+        if (timeoutFlag !== undefined) {
+          timeoutSeconds = Number(timeoutFlag);
+          if (!Number.isFinite(timeoutSeconds)) throw new Error("--timeout must be a number");
+        }
+        const connection = await commands.waitForAuthConnection(ctx, connectionId, timeoutSeconds);
+        return ok(json, connection, formatAuthConnection(connection));
+      }
+
+      case "auth-delete": {
+        const connectionId = requirePositional(positionals, "connection-id");
+        await commands.deleteAuthConnection(ctx, connectionId);
+        return ok(json, { ok: true }, "deleted");
+      }
+
       default:
         return fail(
           `unknown command "${command ?? ""}". Try: open, list, snapshot, click, type, eval, close, ` +
-            "replay-start, replay-stop, replay-list",
+            "replay-start, replay-stop, replay-list, auth-create, auth-list, auth-get, auth-login, " +
+            "auth-wait, auth-delete",
         );
     }
   } catch (error) {

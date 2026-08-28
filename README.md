@@ -37,11 +37,17 @@ this plugin, an agent can:
 - Video replays: record a target's session (`replay-start`), stop it to
   persist the video (`replay-stop`), and list past recordings with their
   view URLs (`replay-list`) — same target ownership rules as everything else.
-- Two inline embeds, both rendered right in the message stream instead of a
+- Managed auth: `bb kernel-browser auth-create|auth-list|auth-get|auth-login|auth-wait|auth-delete`
+  get a Kernel profile authenticated against a domain through Kernel's own
+  hosted login page — this plugin never sees, types, or stores a password or
+  code. See [`skills/kernel-managed-auth/SKILL.md`](skills/kernel-managed-auth/SKILL.md).
+- Three inline embeds, all rendered right in the message stream instead of a
   side panel: `::kernel-live{target-id="<target-id>"}` for a target's live
-  view, and `::kernel-replay{target-id="<target-id>" replay-id="<replay-id>"}`
-  for a finished (or still-processing) recording. `kernel_browser_open` and
-  `kernel_browser_replay_stop` nudge the model to include these automatically.
+  view, `::kernel-replay{target-id="<target-id>" replay-id="<replay-id>"}`
+  for a finished (or still-processing) recording, and
+  `::kernel-auth-login{connection-id="<connection-id>"}` for a hosted login
+  page. `kernel_browser_open`, `kernel_browser_replay_stop`, and
+  `kernel_auth_login` nudge the model to include these automatically.
 - Target ownership tracking: every action is scoped to a target this plugin
   opened. Acting on an unknown or already-closed target fails with a clear
   error instead of silently doing nothing.
@@ -88,16 +94,26 @@ on first use) compiles `dist/server.js` and `dist/app.js` and is what a
   browser) for navigation/click/type/eval, and the Computer Use API for
   coordinate-based fallback actions. This avoids adding a CDP fingerprint on
   top of Kernel's own stealth handling.
+- `src/kernel-auth-client.ts` — thin wrapper over `@onkernel/sdk`'s
+  `auth.connections` resource (create/get/list/login/delete). Unlike targets,
+  connections aren't tracked in this plugin's own store: they're meant to be
+  reused across threads (that's the point of a stable profile), and they're
+  already scoped by the org's Kernel API key the same way targets are.
 - `src/store.ts` — the plugin's own SQLite table of open targets
   (`target_id`, `thread_id`, `created_by`, live view URL, timestamps), used
   to enforce that every command only acts on a target this plugin opened.
 - `src/commands.ts` — the actual open/list/snapshot/click/type/eval/close/replay
-  logic, shared by the CLI, the agent tools, and the RPC layer.
+  and auth-create/list/get/login/wait/delete logic, shared by the CLI, the
+  agent tools, and the RPC layer.
 - `src/cli.ts`, `src/server.ts` — `bb.cli.register` / `bb.agents.registerTool`
-  glue.
-- `src/rpc.ts`, `app.tsx` — the `kernel-live` and `kernel-replay` message
-  directives' data plane (look up a target or replay by id, close a target)
-  and UI (the embedded iframes).
+  glue for the browser commands and plugin wiring (settings, event handlers).
+- `src/auth-tools.ts` — the auth CLI command metadata and `kernel_auth_*`
+  agent tool registrations, factored out of `server.ts` the same way
+  `rpc.ts` already is.
+- `src/rpc.ts`, `app.tsx` — the `kernel-live`, `kernel-replay`, and
+  `kernel-auth-login` message directives' data plane (look up a target,
+  replay, or auth connection by id; close a target) and UI (the embedded
+  iframes).
 
 ## License
 
