@@ -5,6 +5,24 @@ bb agent open a [Kernel](https://kernel.sh) cloud browser, watch it live, and
 drive it — right from a thread, on your hosted bb workspace, no local
 setup beyond an API key.
 
+## Quick start
+
+The easiest way to get started, if you just want to use it, is to install the
+plugin from its git URL directly:
+
+```
+https://github.com/kernel/bb-ide-plugin
+```
+
+1. Go to `Extensions` in the sidebar
+2. Click on `Installed Plugins`
+3. Click the down arrow next to `New Plugin`
+4. Click `Install from source`
+5. Enter `https://github.com/kernel/bb-ide-plugin` and click `Install Plugin`
+6. In `Configuration`, click the `its Settings page` hyperlink
+7. Enter the `KERNEL_API_KEY` you get from the Kernel dashboard:
+   https://dashboard.onkernel.com/kernel/api-keys
+
 ## Why you'd want this
 
 Kernel gives any bb agent a real, cloud-hosted browser to work with. With
