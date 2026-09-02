@@ -122,7 +122,7 @@ export default async function plugin(bb: BbPluginApi) {
       "include `::kernel-live{target-id=\"<target-id>\"}` on its own line in your reply so they see the live " +
       "view embedded inline instead of just a link. Skip it for unattended or bulk opens, and include at most " +
       "one per reply — pick the target most relevant to what's being discussed.",
-    experimental_statusLabels: { pending: "Opening a Kernel browser", completed: "Opened a Kernel browser" },
+    presentation: { label: { pending: "Opening a Kernel browser", completed: "Opened a Kernel browser" } },
     parameters: z.object({
       url: z.string().max(MAX_URL_LENGTH).optional().describe("URL to navigate to on open"),
       stealth: z.boolean().optional().describe("Use Kernel's anti-bot-detection stealth mode"),
