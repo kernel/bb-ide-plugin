@@ -7,10 +7,21 @@ setup beyond an API key.
 
 ## Quick start
 
-![Install from source dialog](assets/install-plugin-dialog.png)
+![KERNEL Browser in the community plugin list](assets/community-plugin-list.png)
 
-The easiest way to get started, if you just want to use it, is to install the
-plugin from its git URL directly:
+The recommended way to install is straight from the community plugin list:
+
+1. Go to `Extensions` in the sidebar
+2. Find `KERNEL Browser` in the community plugin list and click install
+3. In `Configuration`, click the `its Settings page` hyperlink
+4. Enter the `KERNEL_API_KEY` you get from the Kernel dashboard:
+   https://dashboard.onkernel.com/kernel/api-keys
+
+Prefer to install a specific version, or the plugin isn't showing up in the
+list yet? Install it directly from its git URL instead — see the
+[Quick start](https://github.com/kernel/bb-ide-plugin#quick-start) section:
+
+![Install from source dialog](assets/install-plugin-dialog.png)
 
 ```
 https://github.com/kernel/bb-ide-plugin
